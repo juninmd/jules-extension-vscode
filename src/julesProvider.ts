@@ -32,7 +32,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [
-        vscode.Uri.file(path.join(this.context.extensionPath, 'media'))
+        vscode.Uri.file(path.join(this.context.extensionPath, 'out', 'media'))
       ]
     };
 
@@ -229,7 +229,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private getMediaUri(webview: vscode.Webview, filename: string): vscode.Uri {
-    const mediaPath = path.join(this.context.extensionPath, 'media', filename);
+    const mediaPath = path.join(this.context.extensionPath, 'out', 'media', filename);
     return webview.asWebviewUri(vscode.Uri.file(mediaPath));
   }
 
