@@ -141,7 +141,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./ && cp src/media/icon.png out/media/ && cp src/media/jules-icon.svg out/media/ && cp src/media/style.css out/media/",
+"compile": "tsc -p ./ && cpx \"src/media/**/*.{png,svg,css}\" out/media/",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
     "test": "node ./out/test/runTests.js",
