@@ -1,0 +1,160 @@
+{
+  "name": "jules-extension-vscode",
+  "displayName": "Jules – AI Coding Agent",
+  "description": "Use Google Jules AI coding agent directly inside VS Code",
+  "version": "0.1.0",
+  "publisher": "juninmd",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "jules",
+    "google",
+    "ai",
+    "coding",
+    "assistant"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/juninmd/jules-extension-vscode"
+  },
+  "license": "MIT",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "jules",
+          "title": "Jules AI",
+          "icon": "media/jules-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "jules": [
+        {
+          "type": "webview",
+          "id": "jules.chatView",
+          "name": "Jules AI Agent",
+          "contextualTitle": "Jules AI"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "jules.openPanel",
+        "title": "Open Jules Panel",
+        "category": "Jules"
+      },
+      {
+        "command": "jules.configureApiKey",
+        "title": "Configure API Key",
+        "category": "Jules"
+      },
+      {
+        "command": "jules.newTask",
+        "title": "New Task",
+        "category": "Jules"
+      },
+      {
+        "command": "jules.clearChat",
+        "title": "Clear Chat",
+        "category": "Jules"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "jules.openPanel",
+          "when": "true"
+        },
+        {
+          "command": "jules.configureApiKey",
+          "when": "true"
+        },
+        {
+          "command": "jules.newTask",
+          "when": "true"
+        },
+        {
+          "command": "jules.clearChat",
+          "when": "true"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "jules.newTask",
+          "group": "jules",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Jules AI",
+      "properties": {
+        "jules.apiBaseUrl": {
+          "type": "string",
+          "default": "https://jules.googleapis.com/v1",
+          "description": "Jules API base URL (advanced)",
+          "scope": "application"
+        },
+        "jules.autoOpenOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically open the Jules panel when VS Code starts",
+          "scope": "window"
+        },
+        "jules.language": {
+          "type": "string",
+          "default": "en",
+          "enum": ["en", "pt-BR", "es", "fr", "de", "ja", "ko", "zh-CN"],
+          "enumDescriptions": [
+            "English",
+            "Português (Brasil)",
+            "Español",
+            "Français",
+            "Deutsch",
+            "日本語",
+            "한국어",
+            "中文(简体)"
+          ],
+          "description": "Display language for the Jules interface",
+          "scope": "application"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "jules.openPanel",
+        "key": "ctrl+shift+j",
+        "mac": "cmd+shift+j"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTests.js",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/test-electron": "^2.3.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.3.0"
+  }
+}
