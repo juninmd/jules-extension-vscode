@@ -1,4 +1,12 @@
 // Jules VS Code Extension - Webview Script
+
+// Declare vscode API
+declare function acquireVsCodeApi(): {
+  postMessage(message: any): void;
+  getState(): any;
+  setState(state: any): void;
+};
+
 (function () {
   'use strict';
 
@@ -6,7 +14,27 @@
   const vscode = acquireVsCodeApi();
 
   // State
-  const state = {
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  createdAt: string;
+  updatedAt: string;
+  result?: string;
+  error?: string;
+  pullRequestUrl?: string;
+}
+
+interface State {
+  hasApiKey: boolean;
+  tasks: Task[];
+  codeContext: string | null;
+  codeLanguage: string;
+  isCreatingTask: boolean;
+}
+
+  const state: State = {
     hasApiKey: false,
     tasks: [],
     codeContext: null,
@@ -15,18 +43,18 @@
   };
 
   // Elements - Screens
-  const setupScreen = document.getElementById('setup-screen');
-  const mainScreen = document.getElementById('main-screen');
+  const setupScreen = document.getElementById('setup-screen') as HTMLElement;
+  const mainScreen = document.getElementById('main-screen') as HTMLElement;
 
   // Elements - Setup
   const btnConfigureKey = document.getElementById('btn-configure-key');
   const linkPortal = document.getElementById('link-portal');
 
   // Elements - Main
-  const tasksArea = document.getElementById('tasks-area');
+  const tasksArea = document.getElementById('tasks-area') as HTMLElement;
   const welcomeMsg = document.getElementById('welcome-msg');
-  const messageInput = document.getElementById('message-input');
-  const btnSend = document.getElementById('btn-send');
+  const messageInput = document.getElementById('message-input') as HTMLTextAreaElement;
+  const btnSend = document.getElementById('btn-send') as HTMLButtonElement;
   const btnClear = document.getElementById('btn-clear');
   const btnRefresh = document.getElementById('btn-refresh');
   const btnSettings = document.getElementById('btn-settings');
@@ -49,7 +77,7 @@
       vscode.postMessage({ type: 'configureApiKey' });
     });
 
-    linkPortal?.addEventListener('click', (e) => {
+    linkPortal?.addEventListener('click', (e: Event) => {
       e.preventDefault();
       vscode.postMessage({ type: 'openTaskUrl', url: 'https://jules.google' });
     });
@@ -58,7 +86,7 @@
     btnSend?.addEventListener('click', sendMessage);
 
     // Keyboard shortcut: Ctrl+Enter to send
-    messageInput?.addEventListener('keydown', (e) => {
+    messageInput?.addEventListener('keydown', (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         sendMessage();
@@ -113,7 +141,7 @@
   }
 
   // ---- Task Cards ----
-  function addPendingTaskCard(description) {
+  function addPendingTaskCard(description: string) {
     hideWelcome();
     state.isCreatingTask = true;
     updateSendButton();
@@ -131,7 +159,7 @@
     tasksArea.scrollTop = tasksArea.scrollHeight;
   }
 
-  function createTaskCard(task, isCreating = false) {
+  function createTaskCard(task: any, isCreating = false) {
     const card = document.createElement('div');
     card.className = 'task-card';
     card.dataset.taskId = task.id;
@@ -184,7 +212,7 @@
     return card;
   }
 
-  function updateTaskCard(task) {
+  function updateTaskCard(task: any) {
     const existing = tasksArea.querySelector(`[data-task-id="${CSS.escape(task.id)}"]`);
 
     if (existing) {
@@ -206,7 +234,7 @@
     tasksArea.scrollTop = tasksArea.scrollHeight;
   }
 
-  function addTasksList(tasks) {
+  function addTasksList(tasks: any[]) {
     clearTasks(false);
     if (tasks.length === 0) {
       showWelcome();
@@ -220,7 +248,7 @@
     tasksArea.scrollTop = tasksArea.scrollHeight;
   }
 
-  function addErrorCard(message) {
+  function addErrorCard(message: string) {
     const card = document.createElement('div');
     card.className = 'error-toast';
     card.innerHTML = `<span class="error-icon">⚠️</span><span>${escapeHtml(message)}</span>`;
@@ -233,7 +261,7 @@
   }
 
   // ---- UI Helpers ----
-  function showScreen(screen) {
+  function showScreen(screen: HTMLElement) {
     setupScreen.classList.add('hidden');
     mainScreen.classList.add('hidden');
     screen.classList.remove('hidden');
@@ -265,12 +293,12 @@
     btnSend.disabled = !hasText || state.isCreatingTask;
   }
 
-  function autoResize(textarea) {
+  function autoResize(textarea: HTMLTextAreaElement) {
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
   }
 
-  function setCodeContext(code, language) {
+  function setCodeContext(code: string, language: string) {
     state.codeContext = code;
     state.codeLanguage = language;
     const lineCount = code.split('\n').length;
@@ -291,8 +319,8 @@
   }
 
   // ---- Formatting ----
-  function getStatusLabel(status) {
-    const labels = {
+  function getStatusLabel(status: string) {
+    const labels: { [key: string]: string } = {
       pending: 'Pending',
       running: 'Running',
       completed: 'Completed',
@@ -302,8 +330,8 @@
     return labels[status] || status;
   }
 
-  function getStatusEmoji(status) {
-    const emojis = {
+  function getStatusEmoji(status: string) {
+    const emojis: { [key: string]: string } = {
       pending: '⏳',
       running: '',
       completed: '✅',
@@ -313,11 +341,11 @@
     return emojis[status] || '';
   }
 
-  function formatTime(isoString) {
+  function formatTime(isoString: string) {
     try {
       const date = new Date(isoString);
       const now = new Date();
-      const diffMs = now - date;
+      const diffMs = now.getTime() - date.getTime();
       const diffMins = Math.floor(diffMs / 60000);
       if (diffMins < 1) return 'just now';
       if (diffMins < 60) return `${diffMins}m ago`;
@@ -329,7 +357,7 @@
     }
   }
 
-  function escapeHtml(str) {
+  function escapeHtml(str: string | null | undefined) {
     if (!str) return '';
     return String(str)
       .replace(/&/g, '&amp;')
@@ -340,7 +368,7 @@
   }
 
   // ---- Message Handler ----
-  window.addEventListener('message', (event) => {
+  window.addEventListener('message', (event: MessageEvent) => {
     const message = event.data;
 
     switch (message.type) {
