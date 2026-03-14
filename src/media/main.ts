@@ -14,13 +14,25 @@ declare function acquireVsCodeApi(): {
   const vscode = acquireVsCodeApi();
 
   // State
-  interface State {
-    hasApiKey: boolean;
-    tasks: any[];
-    codeContext: string | null;
-    codeLanguage: string;
-    isCreatingTask: boolean;
-  }
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  createdAt: string;
+  updatedAt: string;
+  result?: string;
+  error?: string;
+  pullRequestUrl?: string;
+}
+
+interface State {
+  hasApiKey: boolean;
+  tasks: Task[];
+  codeContext: string | null;
+  codeLanguage: string;
+  isCreatingTask: boolean;
+}
 
   const state: State = {
     hasApiKey: false,
