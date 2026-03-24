@@ -35,6 +35,13 @@ export class JulesApiClient {
     this.keyLoaded = this.loadConfig();
   }
 
+  // Used for testing to inject a custom fetch implementation
+  private fetchImpl: typeof fetch = fetch;
+
+  public setFetchImpl(fetchImpl: typeof fetch): void {
+    this.fetchImpl = fetchImpl;
+  }
+
   private async loadConfig(): Promise<void> {
     const config = vscode.workspace.getConfiguration('jules');
     this.baseUrl = config.get<string>('apiBaseUrl') ?? 'https://jules.googleapis.com/v1';
@@ -86,7 +93,7 @@ export class JulesApiClient {
       options.body = JSON.stringify(body);
     }
 
-    const response = await fetch(url, options);
+    const response = await this.fetchImpl(url, options);
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;

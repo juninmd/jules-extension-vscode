@@ -102,15 +102,14 @@ describe('JulesApiClient - Part 1', () => {
 
     beforeEach(async () => {
       fetchStub = sinon.stub();
-      global.fetch = fetchStub as any;
 
       client = new JulesApiClient(context);
+      client.setFetchImpl(fetchStub as any);
       await client.waitForInit();
     });
 
     afterEach(() => {
-      // Clean up the global fetch after tests
-      delete (global as any).fetch;
+      // No global cleanup needed
     });
 
     it('should create a task', async () => {
