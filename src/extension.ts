@@ -1,6 +1,14 @@
 import * as vscode from 'vscode';
+import * as Sentry from '@sentry/node';
 import { JulesApiClient } from './julesApiClient';
 import { JulesChatViewProvider } from './julesProvider';
+
+// Initialize Sentry for error tracking
+Sentry.init({
+  dsn: process.env.SENTRY_DSN || '',
+  tracesSampleRate: 1.0,
+  environment: process.env.NODE_ENV || 'production'
+});
 
 let chatProvider: JulesChatViewProvider | undefined;
 
