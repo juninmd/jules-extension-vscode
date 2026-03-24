@@ -101,7 +101,8 @@ describe('JulesApiClient - Part 1', () => {
     let client: any;
 
     beforeEach(async () => {
-      fetchStub = sinon.stub(global, 'fetch');
+      // @ts-ignore
+      fetchStub = sinon.stub(globalThis, 'fetch');
       client = new JulesApiClient(context);
       await client.waitForInit();
     });
