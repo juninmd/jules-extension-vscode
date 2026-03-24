@@ -1,5 +1,8 @@
 # jules-extension-vscode
 
+[![CI/CD Pipeline](https://github.com/juninmd/jules-extension-vscode/actions/workflows/ci.yml/badge.svg)](https://github.com/juninmd/jules-extension-vscode/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/juninmd/jules-extension-vscode/branch/main/graph/badge.svg)](https://codecov.io/gh/juninmd/jules-extension-vscode)
+
 A Visual Studio Code extension to use [Google Jules](https://jules.google) AI coding agent directly inside VS Code.
 
 ## Features
