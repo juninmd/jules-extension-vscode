@@ -11,7 +11,7 @@ Currently, only the latest version of the `jules-extension-vscode` extension is 
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability within this project, please send an e-mail to the maintainer via the contact information on the GitHub profile. All security vulnerabilities will be promptly addressed.
+If you discover a security vulnerability within this project, please report it privately via GitHub's security reporting feature. You can do this by going to the "Security" tab of our GitHub repository and clicking on "Report a vulnerability".
 
 Please include the following information in your report:
 - Type of issue (e.g. buffer overflow, SQL injection, cross-site scripting, etc.)
