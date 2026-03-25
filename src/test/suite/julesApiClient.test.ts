@@ -91,7 +91,8 @@ suite('JulesApiClient Test Suite', () => {
         try {
             await apiClient.getTask('task-1');
             assert.fail('Should have thrown');
-        } catch (e: any) {
+        } catch (e: unknown) {
+            assert.ok(e instanceof Error);
             assert.strictEqual(e.message, 'Not Found');
         }
     });
@@ -109,7 +110,8 @@ suite('JulesApiClient Test Suite', () => {
         try {
             await apiClient.getTask('task-1');
             assert.fail('Should have thrown');
-        } catch (e: any) {
+        } catch (e: unknown) {
+            assert.ok(e instanceof Error);
             assert.strictEqual(e.message, 'Invalid API key. Please configure a valid Jules API key.');
         }
     });

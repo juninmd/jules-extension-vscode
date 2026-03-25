@@ -64,14 +64,14 @@ suite('JulesChatViewProvider Test Suite', () => {
     });
 
     test('resolveWebviewView sets options and html', () => {
-        provider.resolveWebviewView(webviewView, {} as any, {} as any);
+        provider.resolveWebviewView(webviewView, {} as vscode.WebviewViewResolveContext, {} as vscode.CancellationToken);
 
         assert.ok(webviewView.webview.options.enableScripts);
         assert.ok(webviewView.webview.html.includes('Jules AI Agent'));
     });
 
     test('notifyApiKeyChanged sends message', () => {
-        provider.resolveWebviewView(webviewView, {} as any, {} as any);
+        provider.resolveWebviewView(webviewView, {} as vscode.WebviewViewResolveContext, {} as vscode.CancellationToken);
         provider.notifyApiKeyChanged(true);
 
         assert.ok((webviewView.webview.postMessage as sinon.SinonStub).calledWith({
@@ -81,7 +81,7 @@ suite('JulesChatViewProvider Test Suite', () => {
     });
 
     test('sendSelectedCode sends message', () => {
-        provider.resolveWebviewView(webviewView, {} as any, {} as any);
+        provider.resolveWebviewView(webviewView, {} as vscode.WebviewViewResolveContext, {} as vscode.CancellationToken);
         provider.sendSelectedCode('const a = 1;', 'javascript');
 
         assert.ok((webviewView.webview.postMessage as sinon.SinonStub).calledWith({
@@ -92,7 +92,7 @@ suite('JulesChatViewProvider Test Suite', () => {
     });
 
     test('clearChat sends message', () => {
-        provider.resolveWebviewView(webviewView, {} as any, {} as any);
+        provider.resolveWebviewView(webviewView, {} as vscode.WebviewViewResolveContext, {} as vscode.CancellationToken);
         provider.clearChat();
 
         assert.ok((webviewView.webview.postMessage as sinon.SinonStub).calledWith({

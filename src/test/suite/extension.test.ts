@@ -3,10 +3,9 @@ import * as vscode from 'vscode';
 import * as sinon from 'sinon';
 import { activate, deactivate } from '../../extension';
 import { JulesApiClient } from '../../julesApiClient';
-import { JulesChatViewProvider } from '../../julesProvider';
 
 suite('Extension Test Suite', () => {
-	vscode.window.showInformationMessage('Start all tests.');
+	void vscode.window.showInformationMessage('Start all tests.');
 
 	let context: vscode.ExtensionContext;
 	let registerCommandStub: sinon.SinonStub;
@@ -33,12 +32,12 @@ suite('Extension Test Suite', () => {
 				setKeysForSync: sinon.stub()
 			},
 			extensionUri: vscode.Uri.file('/test/path'),
-			environmentVariableCollection: {} as any,
+			environmentVariableCollection: {} as unknown,
 			extensionMode: vscode.ExtensionMode.Test,
 			storageUri: undefined,
 			globalStorageUri: vscode.Uri.file('/test/storage'),
 			logUri: vscode.Uri.file('/test/log'),
-			extension: {} as any,
+			extension: {} as unknown,
 			asAbsolutePath: sinon.stub(),
 			storagePath: '',
 			globalStoragePath: '',
