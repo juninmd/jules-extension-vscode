@@ -1,0 +1,418 @@
+{
+  "total": 8,
+  "p": 1,
+  "ps": 100,
+  "paging": {
+    "pageIndex": 1,
+    "pageSize": 100,
+    "total": 8
+  },
+  "effortTotal": 91,
+  "debtTotal": 91,
+  "issues": [
+    {
+      "key": "AZ0i_tPq5GDBj9JpeuLo",
+      "rule": "typescript:S3735",
+      "severity": "CRITICAL",
+      "component": "juninmd_jules-extension-vscode:src/test/suite/extension.test.ts",
+      "project": "juninmd_jules-extension-vscode",
+      "hash": "ee2da5916cfbc1700256047da6cccfa6",
+      "textRange": {
+        "startLine": 8,
+        "endLine": 8,
+        "startOffset": 1,
+        "endOffset": 5
+      },
+      "flows": [],
+      "resolution": "FIXED",
+      "status": "CLOSED",
+      "message": "Remove this use of the \"void\" operator.",
+      "effort": "5min",
+      "debt": "5min",
+      "tags": [
+        "confusing",
+        "type-dependent"
+      ],
+      "creationDate": "2026-03-25T03:16:30+0000",
+      "updateDate": "2026-03-25T03:21:34+0000",
+      "closeDate": "2026-03-25T03:21:34+0000",
+      "type": "CODE_SMELL",
+      "organization": "juninmd",
+      "pullRequest": "21",
+      "cleanCodeAttribute": "CLEAR",
+      "cleanCodeAttributeCategory": "INTENTIONAL",
+      "impacts": [
+        {
+          "softwareQuality": "MAINTAINABILITY",
+          "severity": "HIGH"
+        }
+      ],
+      "issueStatus": "FIXED",
+      "projectName": "jules-extension-vscode",
+      "internalTags": []
+    },
+    {
+      "key": "AZ0i-mUlNpE5n0zJx9DE",
+      "rule": "typescript:S7772",
+      "severity": "MINOR",
+      "component": "juninmd_jules-extension-vscode:src/test/runTest.ts",
+      "project": "juninmd_jules-extension-vscode",
+      "line": 1,
+      "hash": "6c88602ec87337f7ced5b0656f1d5f29",
+      "textRange": {
+        "startLine": 1,
+        "endLine": 1,
+        "startOffset": 22,
+        "endOffset": 28
+      },
+      "flows": [],
+      "status": "OPEN",
+      "message": "Prefer `node:path` over `path`.",
+      "effort": "5min",
+      "debt": "5min",
+      "tags": [
+        "convention",
+        "import",
+        "nodejs"
+      ],
+      "creationDate": "2026-03-25T03:11:33+0000",
+      "updateDate": "2026-03-25T03:11:44+0000",
+      "type": "CODE_SMELL",
+      "organization": "juninmd",
+      "pullRequest": "21",
+      "cleanCodeAttribute": "CONVENTIONAL",
+      "cleanCodeAttributeCategory": "CONSISTENT",
+      "impacts": [
+        {
+          "softwareQuality": "MAINTAINABILITY",
+          "severity": "MEDIUM"
+        }
+      ],
+      "issueStatus": "OPEN",
+      "projectName": "jules-extension-vscode",
+      "internalTags": []
+    },
+    {
+      "key": "AZ0i-mUlNpE5n0zJx9DF",
+      "rule": "typescript:S2486",
+      "severity": "MINOR",
+      "component": "juninmd_jules-extension-vscode:src/test/runTest.ts",
+      "project": "juninmd_jules-extension-vscode",
+      "hash": "9dcd66fc3d98a347c205c43e822e7ebd",
+      "textRange": {
+        "startLine": 16,
+        "endLine": 19,
+        "startOffset": 4,
+        "endOffset": 3
+      },
+      "flows": [],
+      "resolution": "FIXED",
+      "status": "CLOSED",
+      "message": "Handle this exception or don't catch it at all.",
+      "effort": "1h",
+      "debt": "1h",
+      "tags": [
+        "cwe",
+        "error-handling",
+        "suspicious"
+      ],
+      "creationDate": "2026-03-25T03:11:33+0000",
+      "updateDate": "2026-03-25T03:16:30+0000",
+      "closeDate": "2026-03-25T03:16:30+0000",
+      "type": "CODE_SMELL",
+      "organization": "juninmd",
+      "pullRequest": "21",
+      "cleanCodeAttribute": "CLEAR",
+      "cleanCodeAttributeCategory": "INTENTIONAL",
+      "impacts": [
+        {
+          "softwareQuality": "MAINTAINABILITY",
+          "severity": "LOW"
+        }
+      ],
+      "issueStatus": "FIXED",
+      "projectName": "jules-extension-vscode",
+      "internalTags": []
+    },
+    {
+      "key": "AZ0i-mR0NpE5n0zJx9C_",
+      "rule": "typescript:S7772",
+      "severity": "MINOR",
+      "component": "juninmd_jules-extension-vscode:src/test/suite/extension.test.ts",
+      "project": "juninmd_jules-extension-vscode",
+      "line": 1,
+      "hash": "2f153a3e5b0aa0911ffa3c13834b5c6c",
+      "textRange": {
+        "startLine": 1,
+        "endLine": 1,
+        "startOffset": 24,
+        "endOffset": 32
+      },
+      "flows": [],
+      "status": "OPEN",
+      "message": "Prefer `node:assert` over `assert`.",
+      "effort": "5min",
+      "debt": "5min",
+      "tags": [
+        "convention",
+        "import",
+        "nodejs"
+      ],
+      "creationDate": "2026-03-25T03:11:33+0000",
+      "updateDate": "2026-03-25T03:11:44+0000",
+      "type": "CODE_SMELL",
+      "organization": "juninmd",
+      "pullRequest": "21",
+      "cleanCodeAttribute": "CONVENTIONAL",
+      "cleanCodeAttributeCategory": "CONSISTENT",
+      "impacts": [
+        {
+          "softwareQuality": "MAINTAINABILITY",
+          "severity": "MEDIUM"
+        }
+      ],
+      "issueStatus": "OPEN",
+      "projectName": "jules-extension-vscode",
+      "internalTags": []
+    },
+    {
+      "key": "AZ0i-mR0NpE5n0zJx9DA",
+      "rule": "typescript:S1128",
+      "severity": "MINOR",
+      "component": "juninmd_jules-extension-vscode:src/test/suite/extension.test.ts",
+      "project": "juninmd_jules-extension-vscode",
+      "hash": "10633354afd8a59f1c04b7d226c5c7e6",
+      "textRange": {
+        "startLine": 6,
+        "endLine": 6,
+        "startOffset": 9,
+        "endOffset": 30
+      },
+      "flows": [],
+      "resolution": "FIXED",
+      "status": "CLOSED",
+      "message": "Remove this unused import of 'JulesChatViewProvider'.",
+      "effort": "1min",
+      "debt": "1min",
+      "tags": [
+        "es2015",
+        "type-dependent",
+        "unused"
+      ],
+      "creationDate": "2026-03-25T03:11:33+0000",
+      "updateDate": "2026-03-25T03:16:30+0000",
+      "closeDate": "2026-03-25T03:16:30+0000",
+      "type": "CODE_SMELL",
+      "organization": "juninmd",
+      "pullRequest": "21",
+      "cleanCodeAttribute": "CLEAR",
+      "cleanCodeAttributeCategory": "INTENTIONAL",
+      "impacts": [
+        {
+          "softwareQuality": "MAINTAINABILITY",
+          "severity": "LOW"
+        }
+      ],
+      "issueStatus": "FIXED",
+      "projectName": "jules-extension-vscode",
+      "internalTags": []
+    },
+    {
+      "key": "AZ0i-mUMNpE5n0zJx9DC",
+      "rule": "typescript:S7772",
+      "severity": "MINOR",
+      "component": "juninmd_jules-extension-vscode:src/test/suite/index.ts",
+      "project": "juninmd_jules-extension-vscode",
+      "line": 1,
+      "hash": "6c88602ec87337f7ced5b0656f1d5f29",
+      "textRange": {
+        "startLine": 1,
+        "endLine": 1,
+        "startOffset": 22,
+        "endOffset": 28
+      },
+      "flows": [],
+      "status": "OPEN",
+      "message": "Prefer `node:path` over `path`.",
+      "effort": "5min",
+      "debt": "5min",
+      "tags": [
+        "convention",
+        "import",
+        "nodejs"
+      ],
+      "creationDate": "2026-03-25T03:11:33+0000",
+      "updateDate": "2026-03-25T03:11:44+0000",
+      "type": "CODE_SMELL",
+      "organization": "juninmd",
+      "pullRequest": "21",
+      "cleanCodeAttribute": "CONVENTIONAL",
+      "cleanCodeAttributeCategory": "CONSISTENT",
+      "impacts": [
+        {
+          "softwareQuality": "MAINTAINABILITY",
+          "severity": "MEDIUM"
+        }
+      ],
+      "issueStatus": "OPEN",
+      "projectName": "jules-extension-vscode",
+      "internalTags": []
+    },
+    {
+      "key": "AZ0i-mUcNpE5n0zJx9DD",
+      "rule": "typescript:S7772",
+      "severity": "MINOR",
+      "component": "juninmd_jules-extension-vscode:src/test/suite/julesApiClient.test.ts",
+      "project": "juninmd_jules-extension-vscode",
+      "line": 1,
+      "hash": "2f153a3e5b0aa0911ffa3c13834b5c6c",
+      "textRange": {
+        "startLine": 1,
+        "endLine": 1,
+        "startOffset": 24,
+        "endOffset": 32
+      },
+      "flows": [],
+      "status": "OPEN",
+      "message": "Prefer `node:assert` over `assert`.",
+      "effort": "5min",
+      "debt": "5min",
+      "tags": [
+        "convention",
+        "import",
+        "nodejs"
+      ],
+      "creationDate": "2026-03-25T03:11:33+0000",
+      "updateDate": "2026-03-25T03:11:44+0000",
+      "type": "CODE_SMELL",
+      "organization": "juninmd",
+      "pullRequest": "21",
+      "cleanCodeAttribute": "CONVENTIONAL",
+      "cleanCodeAttributeCategory": "CONSISTENT",
+      "impacts": [
+        {
+          "softwareQuality": "MAINTAINABILITY",
+          "severity": "MEDIUM"
+        }
+      ],
+      "issueStatus": "OPEN",
+      "projectName": "jules-extension-vscode",
+      "internalTags": []
+    },
+    {
+      "key": "AZ0i-mUCNpE5n0zJx9DB",
+      "rule": "typescript:S7772",
+      "severity": "MINOR",
+      "component": "juninmd_jules-extension-vscode:src/test/suite/julesProvider.test.ts",
+      "project": "juninmd_jules-extension-vscode",
+      "line": 1,
+      "hash": "2f153a3e5b0aa0911ffa3c13834b5c6c",
+      "textRange": {
+        "startLine": 1,
+        "endLine": 1,
+        "startOffset": 24,
+        "endOffset": 32
+      },
+      "flows": [],
+      "status": "OPEN",
+      "message": "Prefer `node:assert` over `assert`.",
+      "effort": "5min",
+      "debt": "5min",
+      "tags": [
+        "convention",
+        "import",
+        "nodejs"
+      ],
+      "creationDate": "2026-03-25T03:11:33+0000",
+      "updateDate": "2026-03-25T03:11:44+0000",
+      "type": "CODE_SMELL",
+      "organization": "juninmd",
+      "pullRequest": "21",
+      "cleanCodeAttribute": "CONVENTIONAL",
+      "cleanCodeAttributeCategory": "CONSISTENT",
+      "impacts": [
+        {
+          "softwareQuality": "MAINTAINABILITY",
+          "severity": "MEDIUM"
+        }
+      ],
+      "issueStatus": "OPEN",
+      "projectName": "jules-extension-vscode",
+      "internalTags": []
+    }
+  ],
+  "components": [
+    {
+      "organization": "juninmd",
+      "key": "juninmd_jules-extension-vscode:src/test/runTest.ts",
+      "uuid": "AZ0i-l-GNpE5n0zJx9Cz",
+      "enabled": true,
+      "qualifier": "FIL",
+      "name": "runTest.ts",
+      "longName": "src/test/runTest.ts",
+      "path": "src/test/runTest.ts",
+      "pullRequest": "21"
+    },
+    {
+      "organization": "juninmd",
+      "key": "juninmd_jules-extension-vscode:src/test/suite/julesApiClient.test.ts",
+      "uuid": "AZ0i-l-GNpE5n0zJx9Cx",
+      "enabled": true,
+      "qualifier": "FIL",
+      "name": "julesApiClient.test.ts",
+      "longName": "src/test/suite/julesApiClient.test.ts",
+      "path": "src/test/suite/julesApiClient.test.ts",
+      "pullRequest": "21"
+    },
+    {
+      "organization": "juninmd",
+      "key": "juninmd_jules-extension-vscode:src/test/suite/index.ts",
+      "uuid": "AZ0i-l-GNpE5n0zJx9Cw",
+      "enabled": true,
+      "qualifier": "FIL",
+      "name": "index.ts",
+      "longName": "src/test/suite/index.ts",
+      "path": "src/test/suite/index.ts",
+      "pullRequest": "21"
+    },
+    {
+      "organization": "juninmd",
+      "key": "juninmd_jules-extension-vscode:src/test/suite/julesProvider.test.ts",
+      "uuid": "AZ0i-l-GNpE5n0zJx9Cv",
+      "enabled": true,
+      "qualifier": "FIL",
+      "name": "julesProvider.test.ts",
+      "longName": "src/test/suite/julesProvider.test.ts",
+      "path": "src/test/suite/julesProvider.test.ts",
+      "pullRequest": "21"
+    },
+    {
+      "organization": "juninmd",
+      "key": "juninmd_jules-extension-vscode",
+      "uuid": "AZ0i-fcpJQLdBRfUUeQS",
+      "enabled": true,
+      "qualifier": "TRK",
+      "name": "jules-extension-vscode",
+      "longName": "jules-extension-vscode",
+      "pullRequest": "21"
+    },
+    {
+      "organization": "juninmd",
+      "key": "juninmd_jules-extension-vscode:src/test/suite/extension.test.ts",
+      "uuid": "AZ0i-l-GNpE5n0zJx9Cu",
+      "enabled": true,
+      "qualifier": "FIL",
+      "name": "extension.test.ts",
+      "longName": "src/test/suite/extension.test.ts",
+      "path": "src/test/suite/extension.test.ts",
+      "pullRequest": "21"
+    }
+  ],
+  "organizations": [
+    {
+      "key": "juninmd",
+      "name": "Antonio Carlos"
+    }
+  ],
+  "facets": []
+}
