@@ -15,7 +15,7 @@ suite('JulesChatViewProvider Test Suite', () => {
             extensionPath: '/test/path',
             subscriptions: [],
             secrets: {
-                get: sinon.stub().resolves('test-key'),
+                get: sinon.stub().resolves('dummy_value'),
                 store: sinon.stub().resolves(),
                 onDidChange: sinon.stub(),
                 delete: sinon.stub().resolves()

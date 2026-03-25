@@ -5,8 +5,6 @@ import { activate, deactivate } from '../../extension';
 import { JulesApiClient } from '../../julesApiClient';
 
 suite('Extension Test Suite', () => {
-	void vscode.window.showInformationMessage('Start all tests.');
-
 	let context: vscode.ExtensionContext;
 	let registerCommandStub: sinon.SinonStub;
 
@@ -14,7 +12,7 @@ suite('Extension Test Suite', () => {
 		context = {
 			subscriptions: [],
 			secrets: {
-				get: sinon.stub().resolves('test-key'),
+				get: sinon.stub().resolves('dummy_value'),
 				store: sinon.stub().resolves(),
 				onDidChange: sinon.stub(),
 				delete: sinon.stub().resolves()
