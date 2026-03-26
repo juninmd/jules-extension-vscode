@@ -1,0 +1,26 @@
+{
+  "extension": [
+    ".ts",
+    ".tsx"
+  ],
+  "exclude": [
+    "**/*.d.ts",
+    "src/test/**",
+    ".vscode-test/**",
+    "node_modules/**",
+    "out/**",
+    "coverage/**"
+  ],
+  "reporter": [
+    "html",
+    "text",
+    "lcov"
+  ],
+  "all": true,
+  "check-coverage": true,
+  "statements": 80,
+  "branches": 80,
+  "functions": 80,
+  "lines": 80,
+  "instrument": true
+}

@@ -2,3 +2,10 @@
 node_modules/
 **/*.map
 *.vsix
+src/
+coverage/
+.nyc_output/
+.github/
+.eslintrc.json
+tsconfig.json
+.editorconfig
