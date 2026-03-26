@@ -33,7 +33,7 @@ suite('JulesApiClient Test Suite', () => {
     });
 
     test('setApiKey stores key and updates state', async () => {
-        await apiClient.setApiKey('new-key');
+        apiClient.setApiKey('new-key');
         assert.strictEqual(apiClient.hasApiKey(), true);
     });
 
@@ -190,7 +190,7 @@ suite('JulesApiClient Test Suite', () => {
             ok: false,
             status: 500,
             statusText: 'Internal Server Error',
-            json: async () => { throw new Error('Not JSON'); }
+            json: (async () => { throw new Error("Not JSON"); }) as any
         } as unknown as Response);
 
         const client = new JulesApiClient(extensionContextMock as vscode.ExtensionContext);

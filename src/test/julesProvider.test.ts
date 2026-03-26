@@ -206,8 +206,8 @@ suite('JulesChatViewProvider Test Suite', () => {
 
         await handleMessage({ type: 'sendMessage', text: 'hello' });
 
-        const openExternalStub = sinon.stub(vscode.env, 'openExternal').resolves();
-        const showInfoStub = sinon.stub(vscode.window, 'showInformationMessage').resolves('Open PR' as any);
+        sinon.stub(vscode.env, 'openExternal').resolves();
+        sinon.stub(vscode.window, 'showInformationMessage').resolves('Open PR' as any);
 
         // Advance timer
         clock.tick(5100);
