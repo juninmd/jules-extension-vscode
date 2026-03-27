@@ -124,7 +124,7 @@ export class JulesMessageHandler {
         this.stopPolling(taskId);
       }
     } catch (error) {
-      // Silently ignore polling errors
+      console.debug('Polling error ignored:', error);
     }
   }
 }

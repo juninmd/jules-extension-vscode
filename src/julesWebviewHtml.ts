@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 export function getHtmlContent(webview: vscode.Webview, context: vscode.ExtensionContext): string {
   const nonce = getNonce();
@@ -128,10 +129,5 @@ function getMediaUri(webview: vscode.Webview, context: vscode.ExtensionContext, 
 }
 
 function getNonce(): string {
-  let text = '';
-  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  for (let i = 0; i < 32; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
+  return crypto.randomBytes(16).toString('base64');
 }

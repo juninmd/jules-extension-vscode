@@ -1,10 +1,17 @@
 import * as vscode from 'vscode';
+import * as Sentry from '@sentry/node';
 import { JulesApiClient } from './julesApiClient';
 import { JulesChatViewProvider } from './julesProvider';
 
 let chatProvider: JulesChatViewProvider | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  // Initialize Sentry for error tracking
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN || '',
+    tracesSampleRate: 1.0,
+  });
+
   // Initialize the API client (reads API key from secret storage)
   const apiClient = new JulesApiClient(context);
 

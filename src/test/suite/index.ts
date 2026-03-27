@@ -3,6 +3,7 @@ import Mocha from 'mocha';
 import { glob } from 'glob';
 
 export async function run(): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const NYC = require('nyc');
   const nyc = new NYC({
     cwd: path.resolve(__dirname, '../../..'),

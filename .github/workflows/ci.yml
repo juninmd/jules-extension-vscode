@@ -5,6 +5,12 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      rollback_version:
+        description: 'Version to rollback to (e.g., 1.0.0)'
+        required: false
+        type: string
 
 jobs:
   lint:
@@ -49,7 +55,7 @@ jobs:
       - name: Compile
         run: npm run compile
       - name: Run Tests
-        run: xvfb-run npm run coverage
+        run: npm run coverage
       - name: Upload Coverage
         uses: codecov/codecov-action@v3
         with:
@@ -116,3 +122,19 @@ jobs:
           name: vsix
       - name: Deploy
         run: npx vsce publish -p ${{ secrets.VSCE_PAT }}
+
+      - name: Slack Notification on Success
+        if: success()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_MESSAGE: 'Successfully deployed jules-extension-vscode to marketplace :rocket:'
+          SLACK_COLOR: ${{ job.status }}
+
+      - name: Slack Notification on Failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_MESSAGE: 'Failed to deploy jules-extension-vscode :boom:'
+          SLACK_COLOR: ${{ job.status }}
