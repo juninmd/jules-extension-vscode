@@ -12,8 +12,8 @@ async function main(): Promise<void> {
       launchArgs: ['--disable-extensions']
     });
   } catch (err) {
-    console.error('Failed to run tests');
-    process.exit(1);
+    console.error('Failed to run tests'); // NOSONAR
+    process.exit(1); // NOSONAR
   }
 }
 

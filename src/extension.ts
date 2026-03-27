@@ -7,8 +7,9 @@ let chatProvider: JulesChatViewProvider | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   // Initialize Sentry for error tracking
+  const sentryConfig = vscode.workspace.getConfiguration('jules');
   Sentry.init({
-    dsn: process.env.SENTRY_DSN || '',
+    dsn: sentryConfig.get<string>('sentryDsn') || '',
     tracesSampleRate: 1.0,
   });
 

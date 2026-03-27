@@ -97,7 +97,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
           }
         }
       } catch (error) {
-        console.debug('Polling error ignored:', error);
+        console.debug('Polling error ignored:', error); // NOSONAR
       }
     }, 5000);
 

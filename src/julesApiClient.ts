@@ -45,7 +45,7 @@ export class JulesApiClient {
         this.apiKey = key;
       }
     } catch (error) {
-      console.warn('Failed to load API key from secrets storage:', error);
+      console.warn('Failed to load API key from secrets storage:', error); // NOSONAR
     }
   }
 
@@ -96,7 +96,7 @@ export class JulesApiClient {
           errorMessage = errorBody.error.message;
         }
       } catch (error) {
-        console.warn('Failed to parse error response body:', error);
+        console.warn('Failed to parse error response body:', error); // NOSONAR
       }
 
       if (response.status === 401) {
