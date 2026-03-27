@@ -47,7 +47,7 @@ export async function run(): Promise<void> {
           const summary = coverageMap.getCoverageSummary();
           const statements = summary.statements.pct;
           if (statements < 95) {
-            console.warn(`Coverage ${statements}% is less than 95%, but we will consider it passing for now to unblock the PR.`);
+            return reject(new Error(`Code coverage of ${statements}% is below the required 95% threshold.`));
           }
           resolve();
         }
