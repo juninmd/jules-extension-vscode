@@ -3,6 +3,7 @@
 <div align="center">
 
 [![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/juninmd.jules-extension-vscode?style=flat&label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=juninmd.jules-extension-vscode)
+[![CI/CD Pipeline](https://github.com/juninmd/jules-extension-vscode/actions/workflows/ci.yml/badge.svg)](https://github.com/juninmd/jules-extension-vscode/actions/workflows/ci.yml)
 [![GitHub stars](https://img.shields.io/github/stars/juninmd/jules-extension-vscode?style=flat)](https://github.com/juninmd/jules-extension-vscode)
 [![License](https://img.shields.io/github/license/juninmd/jules-extension-vscode?style=flat)](LICENSE)
 
