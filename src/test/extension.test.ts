@@ -1,4 +1,4 @@
-import * as assert from 'assert';
+import * as assert from 'assert/strict';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
 import * as extension from '../extension';
@@ -174,14 +174,14 @@ suite('Extension Test Suite', () => {
     assert.ok(configureApiKeyCmdCall);
     const callback = configureApiKeyCmdCall.args[1];
 
-    const showInputBoxStub = sinon.stub(vscode.window, 'showInputBox').resolves('new-key');
+    const showInputBoxStub = sinon.stub(vscode.window, 'showInputBox').resolves('new-token');
     const secretsStoreStub = (context.secrets.store as sinon.SinonStub);
     const showInfoMessageStub = (vscode.window.showInformationMessage as sinon.SinonStub);
 
     await callback();
 
     assert.ok(showInputBoxStub.calledOnce);
-    assert.ok(secretsStoreStub.calledWith('jules.apiKey', 'new-key'));
+    assert.ok(secretsStoreStub.calledWith('jules.apiKey', 'new-token'));
     assert.ok(showInfoMessageStub.calledWith('✅ Jules API key saved successfully!'));
   });
 

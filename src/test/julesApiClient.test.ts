@@ -1,4 +1,4 @@
-import * as assert from 'assert';
+import * as assert from 'assert/strict';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
 import { JulesApiClient } from '../julesApiClient';
@@ -10,7 +10,7 @@ suite('JulesApiClient Test Suite', () => {
   let secretGetStub: sinon.SinonStub;
 
   setup(() => {
-    secretGetStub = sinon.stub().resolves('stored_api_key');
+    secretGetStub = sinon.stub().resolves('stored_token');
     context = {
       secrets: {
         get: secretGetStub,
@@ -38,7 +38,7 @@ suite('JulesApiClient Test Suite', () => {
   });
 
   test('setApiKey should update the key', () => {
-    client.setApiKey('new_api_key');
+    client.setApiKey('new_token');
     assert.strictEqual(client.hasApiKey(), true);
   });
 
@@ -48,7 +48,7 @@ suite('JulesApiClient Test Suite', () => {
   });
 
   test('createTask should send a POST request with correct payload', async () => {
-    client.setApiKey('test_key');
+    client.setApiKey('test_token');
     const mockResponse = {
       ok: true,
       json: sinon.stub().resolves({ id: 'task1', title: 'Test Task' })
@@ -65,12 +65,12 @@ suite('JulesApiClient Test Suite', () => {
     const [url, options] = fetchStub.firstCall.args;
     assert.ok(url.includes('/tasks'));
     assert.strictEqual(options.method, 'POST');
-    assert.strictEqual(options.headers['Authorization'], 'Bearer test_key');
+    assert.strictEqual(options.headers['Authorization'], 'Bearer test_token');
     assert.ok(options.body.includes('Test Task'));
   });
 
   test('getTask should send a GET request for specific task', async () => {
-    client.setApiKey('test_key');
+    client.setApiKey('test_token');
     const mockResponse = {
       ok: true,
       json: sinon.stub().resolves({ id: 'task1', title: 'Test Task' })
@@ -87,7 +87,7 @@ suite('JulesApiClient Test Suite', () => {
   });
 
   test('listTasks should handle pagination', async () => {
-    client.setApiKey('test_key');
+    client.setApiKey('test_token');
     const mockResponse = {
       ok: true,
       json: sinon.stub().resolves({ tasks: [] })
@@ -102,7 +102,7 @@ suite('JulesApiClient Test Suite', () => {
   });
 
   test('cancelTask should send POST cancel request', async () => {
-    client.setApiKey('test_key');
+    client.setApiKey('test_token');
     const mockResponse = {
       ok: true,
       json: sinon.stub().resolves({})
@@ -118,7 +118,7 @@ suite('JulesApiClient Test Suite', () => {
   });
 
   test('deleteTask should send DELETE request', async () => {
-    client.setApiKey('test_key');
+    client.setApiKey('test_token');
     const mockResponse = {
       ok: true,
       json: sinon.stub().resolves({})
@@ -134,7 +134,7 @@ suite('JulesApiClient Test Suite', () => {
   });
 
   test('API request should throw error on failure', async () => {
-    client.setApiKey('test_key');
+    client.setApiKey('test_token');
     const mockResponse = {
       ok: false,
       status: 401,
@@ -150,7 +150,7 @@ suite('JulesApiClient Test Suite', () => {
   });
 
   test('API request should handle 403 error', async () => {
-    client.setApiKey('test_key');
+    client.setApiKey('test_token');
     const mockResponse = {
       ok: false,
       status: 403,
@@ -166,7 +166,7 @@ suite('JulesApiClient Test Suite', () => {
   });
 
   test('API request should handle 429 error', async () => {
-    client.setApiKey('test_key');
+    client.setApiKey('test_token');
     const mockResponse = {
       ok: false,
       status: 429,
@@ -182,7 +182,7 @@ suite('JulesApiClient Test Suite', () => {
   });
 
   test('API request should handle structured JSON errors', async () => {
-    client.setApiKey('test_key');
+    client.setApiKey('test_token');
     const mockResponse = {
       ok: false,
       status: 400,
@@ -198,7 +198,7 @@ suite('JulesApiClient Test Suite', () => {
   });
 
   test('API request should fallback to default error message if JSON parsing fails', async () => {
-    client.setApiKey('test_key');
+    client.setApiKey('test_token');
     const mockResponse = {
       ok: false,
       status: 500,
