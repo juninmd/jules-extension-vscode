@@ -149,8 +149,9 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run package-prod",
     "compile": "tsc -p ./ && cpx \"src/media/**/*.{png,svg,css}\" out/media/",
+    "package-prod": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --minify && cpx \"src/media/**/*.{png,svg,css}\" out/media/",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
     "test": "vscode-test",
@@ -162,7 +163,7 @@
   "devDependencies": {
     "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^25.5.0",
+    "@types/node": "^20.0.0",
     "@types/sinon": "^21.0.0",
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.57.2",

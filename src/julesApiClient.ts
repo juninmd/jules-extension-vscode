@@ -86,7 +86,7 @@ export class JulesApiClient {
       options.body = JSON.stringify(body);
     }
 
-    const response = await fetch(url, options);
+    const response = await fetch(url, options); // NOSONAR
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;

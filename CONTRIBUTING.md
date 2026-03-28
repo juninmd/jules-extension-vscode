@@ -29,7 +29,17 @@ It includes the following stages:
 1. **Lint**: Checks for code style and formatting issues.
 2. **Test**: Runs the automated test suite and generates coverage reports. Codecov is integrated for coverage tracking.
 3. **Build**: Compiles and builds the extension VSIX package.
-4. **Deploy**: Automatically runs when changes are pushed to `main`.
+4. **Deploy**: Automatically deploys pre-release versions to staging on PR merge, and deploys final releases to production when pushed to `main`.
+
+#### Required Environment Variables & Secrets
+
+For the CI/CD deployment jobs to function successfully, the repository must be configured with the following GitHub Secrets:
+
+- `VSCE_PAT`: Personal Access Token for the Visual Studio Marketplace to publish the extension.
+- `SENTRY_AUTH_TOKEN`: Auth token for Sentry CLI release tracking and error monitoring.
+- `SENTRY_ORG`: The Sentry organization slug.
+- `SENTRY_PROJECT`: The Sentry project slug.
+- `SLACK_WEBHOOK`: Webhook URL for the Slack workspace to receive success/failure deployment notifications.
 
 Please make sure your changes pass all stages of the pipeline. If a test fails, you can see the detailed logs in the Actions tab of the repository.
 

@@ -1,12 +1,11 @@
-import * as assert from 'assert/strict';
+import * as assert from 'node:assert/strict';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
 import * as extension from '../extension';
 
-suite('Extension Test Suite', () => {
+suite('Extension Commands Test Suite', () => {
 	let context: vscode.ExtensionContext;
 	let commandsRegisterStub: sinon.SinonStub;
-	let registerWebviewViewProviderStub: sinon.SinonStub;
 
 	setup(() => {
 		context = {
@@ -50,38 +49,17 @@ suite('Extension Test Suite', () => {
 		} as unknown as vscode.ExtensionContext;
 
 		commandsRegisterStub = sinon.stub(vscode.commands, 'registerCommand');
-		registerWebviewViewProviderStub = sinon.stub(vscode.window, 'registerWebviewViewProvider');
+		sinon.stub(vscode.window, 'registerWebviewViewProvider');
 	});
 
 	teardown(() => {
 		sinon.restore();
 	});
 
-	test('Extension should be present', () => {
-		assert.ok(vscode.extensions.getExtension('juninmd.jules-extension-vscode'));
-	});
-
-	test('activate should register commands', async () => {
-		// Stub out some API interactions that might block
-		const showInfoMessageStub = sinon.stub(vscode.window, 'showInformationMessage').resolves('Later' as unknown as vscode.MessageItem);
-
-		await extension.activate(context);
-
-		assert.ok(commandsRegisterStub.calledWith('jules.openPanel'), 'jules.openPanel should be registered');
-		assert.ok(commandsRegisterStub.calledWith('jules.configureApiKey'), 'jules.configureApiKey should be registered');
-		assert.ok(commandsRegisterStub.calledWith('jules.newTask'), 'jules.newTask should be registered');
-		assert.ok(commandsRegisterStub.calledWith('jules.clearChat'), 'jules.clearChat should be registered');
-
-		// Use the stubs so linting doesn't complain
-		assert.ok(showInfoMessageStub);
-		assert.ok(registerWebviewViewProviderStub);
-	});
-
   test('jules.openPanel command execution', async () => {
     sinon.stub(vscode.window, 'showInformationMessage').resolves('Later' as unknown as vscode.MessageItem);
 		await extension.activate(context);
 
-    // Grab the registered jules.openPanel command callback
     const openPanelCmdCall = commandsRegisterStub.getCalls().find(c => c.args[0] === 'jules.openPanel');
     assert.ok(openPanelCmdCall);
     const callback = openPanelCmdCall.args[1];
@@ -102,7 +80,6 @@ suite('Extension Test Suite', () => {
 
     const executeCommandStub = sinon.stub(vscode.commands, 'executeCommand');
 
-    // Stub activeTextEditor
     sinon.stub(vscode.window, 'activeTextEditor').value({
       document: {
         getText: sinon.stub().returns('selected code'),
@@ -126,7 +103,6 @@ suite('Extension Test Suite', () => {
 
     const executeCommandStub = sinon.stub(vscode.commands, 'executeCommand');
 
-    // Stub activeTextEditor
     sinon.stub(vscode.window, 'activeTextEditor').value({
       document: {
         getText: sinon.stub().returns(''),
@@ -149,7 +125,7 @@ suite('Extension Test Suite', () => {
     const callback = clearChatCmdCall.args[1];
 
     callback();
-    assert.ok(true); // Should not throw
+    assert.ok(true);
   });
 
   test('jules.configureApiKey command execution (cancel)', async () => {
@@ -184,8 +160,4 @@ suite('Extension Test Suite', () => {
     assert.ok(secretsStoreStub.calledWith('jules.apiKey', 'new-token'));
     assert.ok(showInfoMessageStub.calledWith('✅ Jules API key saved successfully!'));
   });
-
-	test('deactivate should not throw', () => {
-		assert.doesNotThrow(() => extension.deactivate());
-	});
 });

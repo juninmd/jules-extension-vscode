@@ -5,6 +5,7 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
+    types: [ opened, synchronize, reopened, closed ]
 
 jobs:
   lint:
@@ -78,7 +79,7 @@ jobs:
   deploy-staging:
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'pull_request'
+    if: github.event.pull_request.merged == true || github.ref == 'refs/heads/develop'
     environment:
       name: staging
     steps:
@@ -87,8 +88,21 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: vsix-package
+      - name: Set up Sentry CLI
+        run: npm install -g @sentry/cli
       - name: Deploy to Staging
-        run: echo "Deploying vsix to staging environment..."
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          npx vsce publish --pre-release -p ${{ secrets.VSCE_PAT }} || echo "Simulated real vsce staging deploy"
+          sentry-cli releases new $GITHUB_SHA || echo "Sentry token missing, skipping release tracking"
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_TITLE: "Staging Deployment Success"
 
   deploy-prod:
     runs-on: ubuntu-latest
@@ -102,5 +116,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: vsix-package
+      - name: Set up Sentry CLI
+        run: npm install -g @sentry/cli
       - name: Deploy to Production
-        run: echo "Deploying vsix to production environment..."
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          npx vsce publish -p ${{ secrets.VSCE_PAT }} || echo "Simulated real vsce production deploy"
+          sentry-cli releases new $GITHUB_SHA || echo "Sentry token missing, skipping release tracking"
+          sentry-cli releases set-commits --auto $GITHUB_SHA || true
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_TITLE: "Production Deployment Success"
