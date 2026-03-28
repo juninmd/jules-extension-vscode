@@ -1,0 +1,215 @@
+import * as assert from 'assert';
+import * as vscode from 'vscode';
+import * as sinon from 'sinon';
+import { JulesApiClient } from '../julesApiClient';
+
+suite('JulesApiClient Test Suite', () => {
+  let context: vscode.ExtensionContext;
+  let client: JulesApiClient;
+  let fetchStub: sinon.SinonStub;
+  let secretGetStub: sinon.SinonStub;
+
+  setup(() => {
+    secretGetStub = sinon.stub().resolves('stored_api_key');
+    context = {
+      secrets: {
+        get: secretGetStub,
+      }
+    } as unknown as vscode.ExtensionContext;
+
+    fetchStub = sinon.stub(global, 'fetch');
+    client = new JulesApiClient(context);
+  });
+
+  teardown(() => {
+    sinon.restore();
+  });
+
+  test('should load config and retrieve API key on init', async () => {
+    await client.waitForInit();
+    assert.strictEqual(client.hasApiKey(), true);
+  });
+
+  test('should ignore errors during init from secret storage', async () => {
+    secretGetStub.rejects(new Error('Secret store failed'));
+    const failingClient = new JulesApiClient(context);
+    await failingClient.waitForInit();
+    assert.strictEqual(failingClient.hasApiKey(), false);
+  });
+
+  test('setApiKey should update the key', () => {
+    client.setApiKey('new_api_key');
+    assert.strictEqual(client.hasApiKey(), true);
+  });
+
+  test('hasApiKey should return false if empty string', () => {
+    client.setApiKey('   ');
+    assert.strictEqual(client.hasApiKey(), false);
+  });
+
+  test('createTask should send a POST request with correct payload', async () => {
+    client.setApiKey('test_key');
+    const mockResponse = {
+      ok: true,
+      json: sinon.stub().resolves({ id: 'task1', title: 'Test Task' })
+    };
+    fetchStub.resolves(mockResponse);
+
+    const result = await client.createTask({
+      title: 'Test Task',
+      description: 'A test task'
+    });
+
+    assert.strictEqual(result.id, 'task1');
+    assert.ok(fetchStub.calledOnce);
+    const [url, options] = fetchStub.firstCall.args;
+    assert.ok(url.includes('/tasks'));
+    assert.strictEqual(options.method, 'POST');
+    assert.strictEqual(options.headers['Authorization'], 'Bearer test_key');
+    assert.ok(options.body.includes('Test Task'));
+  });
+
+  test('getTask should send a GET request for specific task', async () => {
+    client.setApiKey('test_key');
+    const mockResponse = {
+      ok: true,
+      json: sinon.stub().resolves({ id: 'task1', title: 'Test Task' })
+    };
+    fetchStub.resolves(mockResponse);
+
+    const result = await client.getTask('task1');
+
+    assert.strictEqual(result.id, 'task1');
+    assert.ok(fetchStub.calledOnce);
+    const [url, options] = fetchStub.firstCall.args;
+    assert.ok(url.includes('/tasks/task1'));
+    assert.strictEqual(options.method, 'GET');
+  });
+
+  test('listTasks should handle pagination', async () => {
+    client.setApiKey('test_key');
+    const mockResponse = {
+      ok: true,
+      json: sinon.stub().resolves({ tasks: [] })
+    };
+    fetchStub.resolves(mockResponse);
+
+    await client.listTasks('token123');
+
+    assert.ok(fetchStub.calledOnce);
+    const [url] = fetchStub.firstCall.args;
+    assert.ok(url.includes('?pageToken=token123'));
+  });
+
+  test('cancelTask should send POST cancel request', async () => {
+    client.setApiKey('test_key');
+    const mockResponse = {
+      ok: true,
+      json: sinon.stub().resolves({})
+    };
+    fetchStub.resolves(mockResponse);
+
+    await client.cancelTask('task1');
+
+    assert.ok(fetchStub.calledOnce);
+    const [url, options] = fetchStub.firstCall.args;
+    assert.ok(url.includes('/tasks/task1:cancel'));
+    assert.strictEqual(options.method, 'POST');
+  });
+
+  test('deleteTask should send DELETE request', async () => {
+    client.setApiKey('test_key');
+    const mockResponse = {
+      ok: true,
+      json: sinon.stub().resolves({})
+    };
+    fetchStub.resolves(mockResponse);
+
+    await client.deleteTask('task1');
+
+    assert.ok(fetchStub.calledOnce);
+    const [url, options] = fetchStub.firstCall.args;
+    assert.ok(url.includes('/tasks/task1'));
+    assert.strictEqual(options.method, 'DELETE');
+  });
+
+  test('API request should throw error on failure', async () => {
+    client.setApiKey('test_key');
+    const mockResponse = {
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      json: sinon.stub().resolves({})
+    };
+    fetchStub.resolves(mockResponse);
+
+    await assert.rejects(
+      client.getTask('task1'),
+      /Invalid API key/
+    );
+  });
+
+  test('API request should handle 403 error', async () => {
+    client.setApiKey('test_key');
+    const mockResponse = {
+      ok: false,
+      status: 403,
+      statusText: 'Forbidden',
+      json: sinon.stub().resolves({})
+    };
+    fetchStub.resolves(mockResponse);
+
+    await assert.rejects(
+      client.getTask('task1'),
+      /Access denied/
+    );
+  });
+
+  test('API request should handle 429 error', async () => {
+    client.setApiKey('test_key');
+    const mockResponse = {
+      ok: false,
+      status: 429,
+      statusText: 'Too Many Requests',
+      json: sinon.stub().resolves({})
+    };
+    fetchStub.resolves(mockResponse);
+
+    await assert.rejects(
+      client.getTask('task1'),
+      /Rate limit exceeded/
+    );
+  });
+
+  test('API request should handle structured JSON errors', async () => {
+    client.setApiKey('test_key');
+    const mockResponse = {
+      ok: false,
+      status: 400,
+      statusText: 'Bad Request',
+      json: sinon.stub().resolves({ error: { message: 'Custom API error message' } })
+    };
+    fetchStub.resolves(mockResponse);
+
+    await assert.rejects(
+      client.getTask('task1'),
+      /Custom API error message/
+    );
+  });
+
+  test('API request should fallback to default error message if JSON parsing fails', async () => {
+    client.setApiKey('test_key');
+    const mockResponse = {
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      json: sinon.stub().rejects(new Error('Failed to parse json'))
+    };
+    fetchStub.resolves(mockResponse);
+
+    await assert.rejects(
+      client.getTask('task1'),
+      /HTTP 500: Internal Server Error/
+    );
+  });
+});
