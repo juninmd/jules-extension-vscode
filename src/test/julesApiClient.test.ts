@@ -17,7 +17,7 @@ suite('JulesApiClient Test Suite', () => {
       }
     } as unknown as vscode.ExtensionContext;
 
-    fetchStub = sinon.stub(global, 'fetch');
+    fetchStub = sinon.stub(globalThis, 'fetch');
     client = new JulesApiClient(context);
   });
 
