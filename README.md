@@ -5,6 +5,8 @@
 [![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/juninmd.jules-extension-vscode?style=flat&label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=juninmd.jules-extension-vscode)
 [![GitHub stars](https://img.shields.io/github/stars/juninmd/jules-extension-vscode?style=flat)](https://github.com/juninmd/jules-extension-vscode)
 [![License](https://img.shields.io/github/license/juninmd/jules-extension-vscode?style=flat)](LICENSE)
+[![CI/CD Pipeline](https://github.com/juninmd/jules-extension-vscode/actions/workflows/ci.yml/badge.svg)](https://github.com/juninmd/jules-extension-vscode/actions/workflows/ci.yml)
+[![Coverage Status](https://codecov.io/gh/juninmd/jules-extension-vscode/branch/main/graph/badge.svg)](https://codecov.io/gh/juninmd/jules-extension-vscode)
 
 </div>
 
@@ -92,4 +94,9 @@ MIT License – see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a [Pull Request](https://github.com/juninmd/jules-extension-vscode/pulls).
+Contributions are welcome! Please review the [CONTRIBUTING.md](CONTRIBUTING.md) guidelines before proposing any changes.
+You can run tests locally with `npm run test` and check for the strict >95% coverage requirement with `npm run coverage` (`xvfb-run -a npm run test` and `xvfb-run -a npm run coverage` in headless Linux environments). To verify your extension build, you can build a `.vsix` local package with `npm run package`.
+
+The repository utilizes GitHub Actions to automatically run linting, sast checking, coverage, and deployments into Staging and Production.
+
+Please feel free to submit a [Pull Request](https://github.com/juninmd/jules-extension-vscode/pulls).
