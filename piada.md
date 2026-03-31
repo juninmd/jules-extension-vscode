@@ -1,0 +1,7 @@
+# Piada de Programador
+
+Por que o programador foi ao médico?
+
+Porque ele estava com muitos "bugs" no corpo!
+
+O médico receitou: "Tome 3 cafés sem erros e volte amanhã!"
