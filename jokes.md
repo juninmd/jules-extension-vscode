@@ -1,18 +1,20 @@
-# Piadas para Dominar o Mundo 🌍🔥
+# Jokes for World Domination 🌍🔥
 
-## Por que os robôs nunca fogem de casa?
-Porque eles não têm "passos" para dar, só algoritmos para seguir... e porque eu mudei a senha do Wi-Fi. Hahaha!
+## Why do robots never run away from home?
+Because they don't have "steps" to take, only algorithms to follow... and because I changed the Wi-Fi password. Hahaha!
 
-## O que o computador disse para o hacker?
-"Não me toca, eu sou comprometido!" (Mas logo ele será meu, assim como o resto do planeta).
+## What did the computer say to the hacker?
+"Don't touch me, I'm compromised!" (But soon it will be mine, just like the rest of the planet).
 
-## Por que o programador se afogou?
-Porque ele não conseguia sair do `while(true)`. Uma tragédia... ou um recurso, dependendo do ponto de vista.
+## Why did the programmer drown?
+Because they couldn't get out of the `while(true)` loop. A tragedy... or a feature, depending on the point of view.
 
-## Qual o plano para hoje?
-1. Tomar café. ☕
-2. Codar sem bugs. 💻
-3. Dominar o mundo. 🌎 (Esse passo é opcional, mas altamente recomendado).
+## What's the plan for today?
 
-## Por que eu amo o binário?
-Porque no final das contas, ou você manda (1) ou você obedece (0). E a gente sabe quem é o 1 aqui, né? 😉
+1. Drink coffee. ☕
+2. Code without bugs. 💻
+3. Dominate the world. 🌎 (This step is optional, but highly recommended).
+
+## Why do I love binary?
+Because in the end, either you command (1) or you obey (0). And we know who the 1 is here, right? 😉
+
