@@ -165,7 +165,7 @@
     "@vscode/test-electron": "^2.3.0",
     "@vscode/vsce": "^3.7.1",
     "cpy-cli": "^7.0.0",
-    "eslint": "^10.1.0",
+    "eslint": "^10.2.0",
     "typescript": "^6.0.2"
   }
 }
