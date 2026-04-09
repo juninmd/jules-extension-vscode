@@ -155,17 +155,21 @@
     "pretest": "npm run compile",
     "test": "node ./out/test/runTests.js",
     "lint": "eslint src --ext ts",
+    "typecheck": "tsc --noEmit",
     "package": "vsce package"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@types/node": "^25.5.2",
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",
     "@vscode/test-electron": "^2.3.0",
     "@vscode/vsce": "^3.7.1",
+    "cpx": "^1.5.0",
     "cpy-cli": "^7.0.0",
-    "eslint": "^10.2.0",
+    "eslint": "^8.57.1",
     "typescript": "^6.0.2"
   }
 }
