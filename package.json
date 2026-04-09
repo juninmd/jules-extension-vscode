@@ -155,6 +155,7 @@
     "pretest": "npm run compile",
     "test": "node ./out/test/runTests.js",
     "lint": "eslint src --ext ts",
+    "typecheck": "tsc --noEmit",
     "package": "vsce package"
   },
   "devDependencies": {
