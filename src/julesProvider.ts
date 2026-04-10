@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { JulesApiClient } from './julesApiClient';
+import { JulesApiClient } from './julesApiClient.js';
 
 type WebviewMessage =
   | { type: 'sendMessage'; text: string; codeContext?: string }
@@ -45,9 +45,10 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     );
 
     // Check if API key is configured and notify the webview
-    void this.apiClient.waitForInit().then(() => {
+    void (async () => {
+      await this.apiClient.waitForInit();
       this.notifyApiKeyChanged(this.apiClient.hasApiKey());
-    });
+    })();
   }
 
   public notifyApiKeyChanged(hasKey: boolean): void {
@@ -202,14 +203,13 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
             if (task.pullRequestUrl) {
               actions.push('Open PR');
             }
-            void vscode.window.showInformationMessage(
+            const action = await vscode.window.showInformationMessage(
               `✅ Jules task "${task.title}" completed!`,
               ...actions
-            ).then((action) => {
-              if (action === 'Open PR' && task.pullRequestUrl) {
-                void vscode.env.openExternal(vscode.Uri.parse(task.pullRequestUrl));
-              }
-            });
+            );
+            if (action === 'Open PR' && task.pullRequestUrl) {
+              await vscode.env.openExternal(vscode.Uri.parse(task.pullRequestUrl));
+            }
           }
         }
       } catch {

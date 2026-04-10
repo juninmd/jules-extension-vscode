@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { JulesApiClient } from './julesApiClient';
-import { JulesChatViewProvider } from './julesProvider';
+import { JulesApiClient } from './julesApiClient.js';
+import { JulesChatViewProvider } from './julesProvider.js';
 
 let chatProvider: JulesChatViewProvider | undefined;
 
