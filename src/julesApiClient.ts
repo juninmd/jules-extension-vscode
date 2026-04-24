@@ -1,9 +1,17 @@
 import * as vscode from 'vscode';
 
+export interface JulesSource {
+  name: string;
+  displayName: string;
+}
+
+export interface ListSourcesResponse {
+  sources: JulesSource[];
+}
+
 export interface JulesTask {
-  id: string;
-  title: string;
-  description: string;
+  name: string;
+  prompt: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   createdAt: string;
   updatedAt: string;
@@ -13,22 +21,23 @@ export interface JulesTask {
 }
 
 export interface CreateTaskRequest {
-  title: string;
-  description: string;
-  repository?: string;
+  prompt: string;
+  sourceContext: {
+    source: string;
+  };
   branch?: string;
   language?: string;
   codeContext?: string;
 }
 
 export interface ListTasksResponse {
-  tasks: JulesTask[];
+  sessions: JulesTask[];
   nextPageToken?: string;
 }
 
 export class JulesApiClient {
   private apiKey: string = '';
-  private baseUrl: string = 'https://jules.googleapis.com/v1';
+  private baseUrl: string = 'https://jules.googleapis.com/v1alpha';
   private keyLoaded: Promise<void>;
 
   constructor(private readonly context: vscode.ExtensionContext) {
@@ -37,7 +46,10 @@ export class JulesApiClient {
 
   private async loadConfig(): Promise<void> {
     const config = vscode.workspace.getConfiguration('jules');
-    this.baseUrl = config.get<string>('apiBaseUrl') ?? 'https://jules.googleapis.com/v1';
+    this.baseUrl = config.get<string>('apiBaseUrl') ?? 'https://jules.googleapis.com/v1alpha';
+    if (this.baseUrl.endsWith('/v1')) {
+       this.baseUrl = this.baseUrl.replace('/v1', '/v1alpha');
+    }
 
     try {
       const key = await this.context.secrets.get('jules.apiKey');
@@ -65,7 +77,7 @@ export class JulesApiClient {
   private getHeaders(): Record<string, string> {
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.apiKey}`,
+      'X-Goog-Api-Key': this.apiKey,
       'X-Jules-Client': 'vscode-extension/0.1.0'
     };
   }
@@ -116,23 +128,30 @@ export class JulesApiClient {
   }
 
   public async createTask(request: CreateTaskRequest): Promise<JulesTask> {
-    return this.request<JulesTask>('POST', '/tasks', request);
+    return this.request<JulesTask>('POST', '/sessions', request);
   }
 
   public async getTask(taskId: string): Promise<JulesTask> {
-    return this.request<JulesTask>('GET', `/tasks/${taskId}`);
+    const path = taskId.startsWith('sessions/') ? `/${taskId}` : `/sessions/${taskId}`;
+    return this.request<JulesTask>('GET', path);
   }
 
   public async listTasks(pageToken?: string): Promise<ListTasksResponse> {
     const queryParams = pageToken ? `?pageToken=${encodeURIComponent(pageToken)}` : '';
-    return this.request<ListTasksResponse>('GET', `/tasks${queryParams}`);
+    return this.request<ListTasksResponse>('GET', `/sessions${queryParams}`);
+  }
+
+  public async listSources(): Promise<ListSourcesResponse> {
+    return this.request<ListSourcesResponse>('GET', '/sources');
   }
 
   public async cancelTask(taskId: string): Promise<void> {
-    await this.request<unknown>('POST', `/tasks/${taskId}:cancel`);
+    const path = taskId.startsWith('sessions/') ? `/${taskId}:cancel` : `/sessions/${taskId}:cancel`;
+    await this.request<unknown>('POST', path);
   }
 
   public async deleteTask(taskId: string): Promise<void> {
-    await this.request<unknown>('DELETE', `/tasks/${taskId}`);
+    const path = taskId.startsWith('sessions/') ? `/${taskId}` : `/sessions/${taskId}`;
+    await this.request<unknown>('DELETE', path);
   }
 }

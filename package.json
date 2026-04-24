@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "type": "module",
   "publisher": "juninmd",
-  "icon": "out/media/icon.png",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -26,7 +26,8 @@
   },
   "license": "MIT",
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onView:jules.chatView"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -35,7 +36,7 @@
         {
           "id": "jules",
           "title": "Jules AI",
-          "icon": "out/media/jules-icon.svg"
+          "icon": "media/jules-icon.svg"
         }
       ]
     },
@@ -151,7 +152,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./ && cpx \"src/media/**/*.{png,svg,css}\" out/media/",
+    "compile": "tsc -p ./ && cpx \"media/**/*.{png,svg,css}\" out/media/",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
     "test": "node ./out/test/runTests.js",

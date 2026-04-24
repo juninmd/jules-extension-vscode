@@ -1,0 +1,45 @@
+{
+	"chat.plugins.enabled": true,
+	"chat.plugins.marketplaces": ["anthropics/claude-code"],
+	"chat.pluginLocations": {
+		"${workspaceFolder}": true
+	},
+	"chat.agentFilesLocations": {
+		"${workspaceFolder}/.agents/agents": true
+	},
+	"chat.instructionsFilesLocations": {
+		"${workspaceFolder}/.agents/rules": true
+	},
+	"chat.agentSkillsLocations": {
+		"${workspaceFolder}/.agents/skills": true
+	},
+	"chat.autopilot.enabled": true,
+	"chat.subagents.allowInvocationsFromSubagents": true,
+	"chat.useCustomizationsInParentRepositories": true,
+	"github.copilot.chat.claudeAgent.enabled": true,
+	"github.copilot.chat.cli.forkSessions.enabled": true,
+	"github.copilot.chat.agentDebugLog.fileLogging.enabled": true,
+	"imageCarousel.chat.enabled": true,
+	"imageCarousel.explorerContextMenu.enabled": true,
+	"workbench.browser.showInTitleBar": true,
+	"workbench.browser.enableChatTools": true,
+	"workbench.browser.openLocalhostLinks": true,
+	"chat.tools.confirmationCarousel.enabled": true,
+	"chat.tools.terminal.backgroundNotifications": true,
+	"chat.editMode.hidden": true,
+	"jsts-chat-features.skills.enabled": true,
+	"accessibility.verbosity.sessionsChat": false,
+	"accessibility.verbosity.keyboardShortcuts": false,
+	"github.copilot.nextEditSuggestions.enabled": true,
+	"chat.editing.autoAcceptDelay": 5,
+	"github.copilot.chat.editor.temporalContext.enabled": true,
+	"github.copilot.chat.edits.temporalContext.enabled": true,
+	"chat.agent.enabled": true,
+	"chat.agent.maxRequests": 15,
+	"github.copilot.chat.edits.codesearch.enabled": true,
+	"chat.promptFiles": true,
+	"accessibility.voice.ignoreCodeBlocks": true,
+	"terminal.integrated.hideOnLastClosed": true,
+	"terminal.integrated.suggest.enabled": true,
+	"python.terminal.shellIntegration.enabled": true
+}

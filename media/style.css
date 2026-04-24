@@ -235,6 +235,39 @@ a:hover {
   gap: 2px;
 }
 
+/* ---- Repo Selector ---- */
+.repo-selector-container {
+  padding: 8px 12px;
+  background: var(--vscode-sideBar-background);
+  border-bottom: 1px solid var(--vscode-panel-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.repo-label {
+  font-size: 0.75em;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+  text-transform: uppercase;
+}
+
+.repo-select {
+  width: 100%;
+  background: var(--vscode-dropdown-background);
+  color: var(--vscode-dropdown-foreground);
+  border: 1px solid var(--vscode-dropdown-border);
+  border-radius: var(--jules-radius-sm);
+  padding: 4px 6px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.85em;
+  outline: none;
+}
+
+.repo-select:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
 /* ---- Tasks Area ---- */
 .tasks-area {
   flex: 1;

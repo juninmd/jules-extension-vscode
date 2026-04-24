@@ -15,9 +15,8 @@ declare function acquireVsCodeApi(): {
 
   // State
 interface Task {
-  id: string;
-  title: string;
-  description: string;
+  name: string;
+  prompt: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   createdAt: string;
   updatedAt: string;
@@ -29,6 +28,7 @@ interface Task {
 interface State {
   hasApiKey: boolean;
   tasks: Task[];
+  sources: any[];
   codeContext: string | null;
   codeLanguage: string;
   isCreatingTask: boolean;
@@ -37,6 +37,7 @@ interface State {
   const state: State = {
     hasApiKey: false,
     tasks: [],
+    sources: [],
     codeContext: null,
     codeLanguage: '',
     isCreatingTask: false,
@@ -61,6 +62,7 @@ interface State {
   const codeContextBanner = document.getElementById('code-context-banner');
   const codeContextLabel = document.getElementById('code-context-label');
   const btnClearContext = document.getElementById('btn-clear-context');
+  const repoSelect = document.getElementById('repo-select') as HTMLSelectElement;
 
   // ---- Init ----
   function init() {
@@ -68,6 +70,9 @@ interface State {
     // Show loading state until we know API key status
     setupScreen.classList.add('hidden');
     mainScreen.classList.add('hidden');
+
+    // Notify extension that webview is ready to receive messages
+    vscode.postMessage({ type: 'ready' });
   }
 
   // ---- Event Bindings ----
@@ -121,11 +126,18 @@ interface State {
   // ---- Send Message ----
   function sendMessage() {
     const text = messageInput?.value.trim();
+    const repository = repoSelect?.value;
+    
     if (!text || state.isCreatingTask) return;
+    if (!repository) {
+        addErrorCard('Please select a repository first.');
+        return;
+    }
 
     vscode.postMessage({
       type: 'sendMessage',
       text,
+      repository,
       codeContext: state.codeContext || undefined,
     });
 
@@ -147,9 +159,8 @@ interface State {
     updateSendButton();
 
     const card = createTaskCard({
-      id: 'creating-' + Date.now(),
-      title: description.substring(0, 100),
-      description,
+      name: 'creating-' + Date.now(),
+      prompt: description,
       status: 'pending',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -162,7 +173,7 @@ interface State {
   function createTaskCard(task: any, isCreating = false) {
     const card = document.createElement('div');
     card.className = 'task-card';
-    card.dataset.taskId = task.id;
+    card.dataset.taskId = task.name;
 
     const statusClass = `status-${task.status}`;
     const statusLabel = getStatusLabel(task.status);
@@ -172,10 +183,10 @@ interface State {
 
     card.innerHTML = `
       <div class="task-card-header">
-        <div class="task-title">${escapeHtml(task.title || task.description || 'Task')}</div>
+        <div class="task-title">${escapeHtml(task.prompt || 'Task')}</div>
         <div class="task-card-actions">
           ${(task.status === 'pending' || task.status === 'running') && !isCreating
-            ? `<button class="icon-btn btn-cancel-task" title="Cancel Task" data-task-id="${escapeHtml(task.id)}">
+            ? `<button class="icon-btn btn-cancel-task" title="Cancel Task" data-task-id="${escapeHtml(task.name)}">
                 <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.354 4.646l-6 6-.708-.708 6-6 .708.708zm-6 0l.708-.708 6 6-.708.708-6-6z"/></svg>
                </button>`
             : ''
@@ -200,7 +211,7 @@ interface State {
     // Bind cancel button
     const cancelBtn = card.querySelector('.btn-cancel-task');
     cancelBtn?.addEventListener('click', () => {
-      vscode.postMessage({ type: 'cancelTask', taskId: task.id });
+      vscode.postMessage({ type: 'cancelTask', taskId: task.name });
     });
 
     // Bind PR link
@@ -213,7 +224,7 @@ interface State {
   }
 
   function updateTaskCard(task: any) {
-    const existing = tasksArea.querySelector(`[data-task-id="${CSS.escape(task.id)}"]`);
+    const existing = tasksArea.querySelector(`[data-task-id="${CSS.escape(task.name)}"]`);
 
     if (existing) {
       const newCard = createTaskCard(task);
@@ -246,6 +257,34 @@ interface State {
     });
     hideWelcome();
     tasksArea.scrollTop = tasksArea.scrollHeight;
+  }
+
+  function updateSourcesList(sources: any[]) {
+      state.sources = sources;
+      if (!repoSelect) return;
+      
+      repoSelect.innerHTML = '';
+      
+      if (sources.length === 0) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'No repositories found';
+          repoSelect.appendChild(option);
+          return;
+      }
+
+      // Add a default select option
+      const defaultOption = document.createElement('option');
+      defaultOption.value = '';
+      defaultOption.textContent = 'Select a repository...';
+      repoSelect.appendChild(defaultOption);
+
+      sources.forEach(source => {
+          const option = document.createElement('option');
+          option.value = source.name;
+          option.textContent = source.displayName || source.name.split('/').pop();
+          repoSelect.appendChild(option);
+      });
   }
 
   function addErrorCard(message: string) {
@@ -396,6 +435,10 @@ interface State {
 
       case 'tasksList':
         addTasksList(message.tasks);
+        break;
+
+      case 'sourcesList':
+        updateSourcesList(message.sources);
         break;
 
       case 'error':

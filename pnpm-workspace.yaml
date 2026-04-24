@@ -1,0 +1,4 @@
+allowBuilds:
+  '@vscode/vsce-sign': true
+  core-js: true
+  keytar: true

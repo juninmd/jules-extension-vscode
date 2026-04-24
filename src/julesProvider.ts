@@ -3,7 +3,8 @@ import * as path from 'path';
 import { JulesApiClient } from './julesApiClient.js';
 
 type WebviewMessage =
-  | { type: 'sendMessage'; text: string; codeContext?: string }
+  | { type: 'ready' }
+  | { type: 'sendMessage'; text: string; repository: string; codeContext?: string }
   | { type: 'configureApiKey' }
   | { type: 'clearChat' }
   | { type: 'cancelTask'; taskId: string }
@@ -36,19 +37,13 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       ]
     };
 
-    webviewView.webview.html = this.getHtmlContent(webviewView.webview);
-
     webviewView.webview.onDidReceiveMessage(
       (message: WebviewMessage) => this.handleMessage(message),
       undefined,
       this.context.subscriptions
     );
 
-    // Check if API key is configured and notify the webview
-    void (async () => {
-      await this.apiClient.waitForInit();
-      this.notifyApiKeyChanged(this.apiClient.hasApiKey());
-    })();
+    webviewView.webview.html = this.getHtmlContent(webviewView.webview);
   }
 
   public notifyApiKeyChanged(hasKey: boolean): void {
@@ -72,12 +67,21 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 
   private async handleMessage(message: WebviewMessage): Promise<void> {
     switch (message.type) {
+      case 'ready':
+        await this.apiClient.waitForInit();
+        this.notifyApiKeyChanged(this.apiClient.hasApiKey());
+        if (this.apiClient.hasApiKey()) {
+          void this.handleRefreshTasks();
+          void this.handleRefreshSources();
+        }
+        break;
+
       case 'configureApiKey':
         await vscode.commands.executeCommand('jules.configureApiKey');
         break;
 
       case 'sendMessage':
-        await this.handleSendMessage(message.text, message.codeContext);
+        await this.handleSendMessage(message.text, message.repository, message.codeContext);
         break;
 
       case 'clearChat':
@@ -102,7 +106,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async handleSendMessage(text: string, codeContext?: string): Promise<void> {
+  private async handleSendMessage(text: string, repository: string, codeContext?: string): Promise<void> {
     if (!this.apiClient.hasApiKey()) {
       this.webviewView?.webview.postMessage({
         type: 'error',
@@ -111,12 +115,22 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    if (!repository) {
+        this.webviewView?.webview.postMessage({
+            type: 'error',
+            message: 'Please select a repository first.'
+        });
+        return;
+    }
+
     this.webviewView?.webview.postMessage({ type: 'taskCreating' });
 
     try {
       const task = await this.apiClient.createTask({
-        title: text.substring(0, 100),
-        description: text,
+        prompt: text,
+        sourceContext: {
+            source: repository
+        },
         codeContext: codeContext
       });
 
@@ -126,7 +140,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       });
 
       // Start polling for task status
-      this.startPolling(task.id);
+      this.startPolling(task.name);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       this.webviewView?.webview.postMessage({
@@ -142,7 +156,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       await this.apiClient.cancelTask(taskId);
       this.webviewView?.webview.postMessage({
         type: 'taskUpdated',
-        task: { id: taskId, status: 'cancelled' }
+        task: { name: taskId, status: 'cancelled' }
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -161,7 +175,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       const response = await this.apiClient.listTasks();
       this.webviewView?.webview.postMessage({
         type: 'tasksList',
-        tasks: response.tasks
+        tasks: response.sessions || []
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -169,6 +183,21 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
         type: 'error',
         message: `Failed to fetch tasks: ${message}`
       });
+    }
+  }
+
+  private async handleRefreshSources(): Promise<void> {
+    if (!this.apiClient.hasApiKey()) {
+      return;
+    }
+    try {
+      const response = await this.apiClient.listSources();
+      this.webviewView?.webview.postMessage({
+        type: 'sourcesList',
+        sources: response.sources || []
+      });
+    } catch (error) {
+        // Silently ignore or notify error
     }
   }
 
@@ -180,7 +209,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
         task
       });
       if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
-        this.stopPolling(taskId);
+        this.stopPolling(task.name);
       }
     } catch (error) {
       // Silently ignore polling errors
@@ -197,14 +226,14 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
           task
         });
         if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
-          this.stopPolling(taskId);
+          this.stopPolling(task.name);
           if (task.status === 'completed') {
             const actions: string[] = [];
             if (task.pullRequestUrl) {
               actions.push('Open PR');
             }
             const action = await vscode.window.showInformationMessage(
-              `✅ Jules task "${task.title}" completed!`,
+              `✅ Jules task "${task.prompt.substring(0, 30)}..." completed!`,
               ...actions
             );
             if (action === 'Open PR' && task.pullRequestUrl) {
@@ -243,13 +272,13 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https: data:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src ${webview.cspSource} 'nonce-${nonce}'; img-src ${webview.cspSource} https: data:;">
   <link rel="stylesheet" href="${styleUri}">
   <title>Jules AI</title>
 </head>
 <body>
   <!-- Setup Screen -->
-  <div id="setup-screen" class="screen hidden">
+  <div id="setup-screen" class="screen">
     <div class="setup-container">
       <div class="setup-logo">
         <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -316,6 +345,14 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       </div>
     </div>
 
+    <!-- Repository Selector -->
+    <div class="repo-selector-container">
+        <label for="repo-select" class="repo-label">Target Repository:</label>
+        <select id="repo-select" class="repo-select">
+            <option value="">Loading repositories...</option>
+        </select>
+    </div>
+
     <!-- Tasks Area -->
     <div id="tasks-area" class="tasks-area">
       <!-- Welcome message -->
@@ -349,7 +386,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     </div>
   </div>
 
-  <script nonce="${nonce}" src="${scriptUri}"></script>
+  <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
   }
