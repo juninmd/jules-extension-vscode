@@ -7,6 +7,7 @@ export interface JulesSource {
 
 export interface ListSourcesResponse {
   sources: JulesSource[];
+  nextPageToken?: string;
 }
 
 export interface JulesTask {
@@ -136,13 +137,18 @@ export class JulesApiClient {
     return this.request<JulesTask>('GET', path);
   }
 
-  public async listTasks(pageToken?: string): Promise<ListTasksResponse> {
-    const queryParams = pageToken ? `?pageToken=${encodeURIComponent(pageToken)}` : '';
-    return this.request<ListTasksResponse>('GET', `/sessions${queryParams}`);
+  public async listTasks(pageToken?: string, filter?: string): Promise<ListTasksResponse> {
+    const params = new URLSearchParams();
+    if (pageToken) params.append('pageToken', pageToken);
+    if (filter) params.append('filter', filter);
+    
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.request<ListTasksResponse>('GET', `/sessions${query}`);
   }
 
-  public async listSources(): Promise<ListSourcesResponse> {
-    return this.request<ListSourcesResponse>('GET', '/sources');
+  public async listSources(pageToken?: string): Promise<ListSourcesResponse> {
+    const queryParams = pageToken ? `?pageToken=${encodeURIComponent(pageToken)}` : '';
+    return this.request<ListSourcesResponse>('GET', `/sources${queryParams}`);
   }
 
   public async cancelTask(taskId: string): Promise<void> {

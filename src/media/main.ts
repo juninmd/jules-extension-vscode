@@ -63,6 +63,7 @@ interface State {
   const codeContextLabel = document.getElementById('code-context-label');
   const btnClearContext = document.getElementById('btn-clear-context');
   const repoSelect = document.getElementById('repo-select') as HTMLSelectElement;
+  const repoSearch = document.getElementById('repo-search') as HTMLInputElement;
 
   // ---- Init ----
   function init() {
@@ -110,7 +111,7 @@ interface State {
     });
 
     btnRefresh?.addEventListener('click', () => {
-      vscode.postMessage({ type: 'refreshTasks' });
+      refreshTasks();
     });
 
     btnSettings?.addEventListener('click', () => {
@@ -121,6 +122,25 @@ interface State {
     btnClearContext?.addEventListener('click', () => {
       clearCodeContext();
     });
+
+    // Repo search
+    repoSearch?.addEventListener('input', () => {
+        filterSources();
+    });
+
+    // Repo change
+    repoSelect?.addEventListener('change', () => {
+        refreshTasks();
+    });
+  }
+
+  // ---- Helpers ----
+  function refreshTasks() {
+      const repository = repoSelect?.value;
+      vscode.postMessage({ 
+          type: 'refreshTasks', 
+          repository: repository || undefined 
+      });
   }
 
   // ---- Send Message ----
@@ -261,14 +281,24 @@ interface State {
 
   function updateSourcesList(sources: any[]) {
       state.sources = sources;
+      filterSources();
+  }
+
+  function filterSources() {
       if (!repoSelect) return;
       
+      const query = repoSearch?.value.toLowerCase() || '';
+      const filtered = state.sources.filter(s => 
+          s.name.toLowerCase().includes(query) || 
+          (s.displayName && s.displayName.toLowerCase().includes(query))
+      );
+
       repoSelect.innerHTML = '';
       
-      if (sources.length === 0) {
+      if (filtered.length === 0) {
           const option = document.createElement('option');
           option.value = '';
-          option.textContent = 'No repositories found';
+          option.textContent = state.sources.length === 0 ? 'No repositories found' : 'No matches found';
           repoSelect.appendChild(option);
           return;
       }
@@ -279,12 +309,18 @@ interface State {
       defaultOption.textContent = 'Select a repository...';
       repoSelect.appendChild(defaultOption);
 
-      sources.forEach(source => {
+      filtered.forEach(source => {
           const option = document.createElement('option');
           option.value = source.name;
           option.textContent = source.displayName || source.name.split('/').pop();
           repoSelect.appendChild(option);
       });
+
+      // If only one match, auto-select it if user is searching
+      if (filtered.length === 1 && query) {
+          repoSelect.selectedIndex = 1;
+          refreshTasks();
+      }
   }
 
   function addErrorCard(message: string) {

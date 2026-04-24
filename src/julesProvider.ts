@@ -8,7 +8,7 @@ type WebviewMessage =
   | { type: 'configureApiKey' }
   | { type: 'clearChat' }
   | { type: 'cancelTask'; taskId: string }
-  | { type: 'refreshTasks' }
+  | { type: 'refreshTasks'; repository?: string }
   | { type: 'openTaskUrl'; url: string }
   | { type: 'getTask'; taskId: string };
 
@@ -93,7 +93,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
         break;
 
       case 'refreshTasks':
-        await this.handleRefreshTasks();
+        await this.handleRefreshTasks(message.repository);
         break;
 
       case 'openTaskUrl':
@@ -167,15 +167,26 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async handleRefreshTasks(): Promise<void> {
+  private async handleRefreshTasks(repository?: string): Promise<void> {
     if (!this.apiClient.hasApiKey()) {
       return;
     }
     try {
-      const response = await this.apiClient.listTasks();
+      let allTasks: any[] = [];
+      let pageToken: string | undefined;
+      const filter = repository ? `sourceContext.source="${repository}"` : undefined;
+
+      do {
+          const response = await this.apiClient.listTasks(pageToken, filter);
+          if (response.sessions) {
+              allTasks = allTasks.concat(response.sessions);
+          }
+          pageToken = response.nextPageToken;
+      } while (pageToken);
+
       this.webviewView?.webview.postMessage({
         type: 'tasksList',
-        tasks: response.sessions || []
+        tasks: allTasks
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -191,10 +202,20 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     try {
-      const response = await this.apiClient.listSources();
+      let allSources: any[] = [];
+      let pageToken: string | undefined;
+
+      do {
+          const response = await this.apiClient.listSources(pageToken);
+          if (response.sources) {
+              allSources = allSources.concat(response.sources);
+          }
+          pageToken = response.nextPageToken;
+      } while (pageToken);
+
       this.webviewView?.webview.postMessage({
         type: 'sourcesList',
-        sources: response.sources || []
+        sources: allSources
       });
     } catch (error) {
         // Silently ignore or notify error
@@ -347,7 +368,11 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 
     <!-- Repository Selector -->
     <div class="repo-selector-container">
-        <label for="repo-select" class="repo-label">Target Repository:</label>
+        <label for="repo-search" class="repo-label">Target Repository:</label>
+        <div class="repo-search-wrapper">
+            <input type="text" id="repo-search" class="repo-search-input" placeholder="Search repositories...">
+            <svg class="search-icon" viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M11.742 10.344a6.5 6.5 0 10-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 001.415-1.414l-3.85-3.85a1.007 1.007 0 00-.115-.1zM12 6.5a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z"/></svg>
+        </div>
         <select id="repo-select" class="repo-select">
             <option value="">Loading repositories...</option>
         </select>

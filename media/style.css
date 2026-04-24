@@ -252,6 +252,36 @@ a:hover {
   text-transform: uppercase;
 }
 
+.repo-search-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.repo-search-input {
+  width: 100%;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: var(--jules-radius-sm);
+  padding: 4px 8px 4px 24px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.85em;
+  outline: none;
+}
+
+.repo-search-input:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.search-icon {
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--vscode-input-placeholderForeground);
+  pointer-events: none;
+}
+
 .repo-select {
   width: 100%;
   background: var(--vscode-dropdown-background);
