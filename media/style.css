@@ -387,11 +387,17 @@ button { font-family: inherit; cursor: pointer; }
   transition: background var(--t);
 }
 
-.task-card.status-pending::before  { background: var(--j-yellow); }
-.task-card.status-running::before  { background: var(--j-blue); }
-.task-card.status-completed::before { background: var(--j-green); }
-.task-card.status-failed::before   { background: var(--j-red); }
-.task-card.status-cancelled::before { background: var(--vscode-descriptionForeground); opacity: 0.4; }
+.task-card.status-pending::before         { background: var(--j-yellow); }
+.task-card.status-running::before         { background: var(--j-blue); }
+.task-card.status-pendingApproval::before { background: var(--j-yellow); animation: stripe-pulse 1.4s ease-in-out infinite; }
+.task-card.status-completed::before       { background: var(--j-green); }
+.task-card.status-failed::before          { background: var(--j-red); }
+.task-card.status-cancelled::before       { background: var(--vscode-descriptionForeground); opacity: 0.4; }
+
+@keyframes stripe-pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
 
 .task-card:hover {
   border-color: var(--vscode-focusBorder, var(--j-blue));
@@ -437,25 +443,30 @@ button { font-family: inherit; cursor: pointer; }
   flex-shrink: 0;
 }
 
-.task-card.status-pending .status-dot  { background: var(--j-yellow); }
-.task-card.status-running .status-dot  {
+.task-card.status-pending .status-dot          { background: var(--j-yellow); }
+.task-card.status-running .status-dot          {
   background: var(--j-blue);
   animation: dot-pulse 1.4s ease-in-out infinite;
 }
-.task-card.status-completed .status-dot { background: var(--j-green); }
-.task-card.status-failed .status-dot   { background: var(--j-red); }
-.task-card.status-cancelled .status-dot { background: var(--vscode-descriptionForeground); opacity: 0.4; }
+.task-card.status-pendingApproval .status-dot  {
+  background: var(--j-yellow);
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}
+.task-card.status-completed .status-dot        { background: var(--j-green); }
+.task-card.status-failed .status-dot           { background: var(--j-red); }
+.task-card.status-cancelled .status-dot        { background: var(--vscode-descriptionForeground); opacity: 0.4; }
 
 @keyframes dot-pulse {
   0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(66,133,244,0.5); }
   50% { transform: scale(1.15); box-shadow: 0 0 0 4px rgba(66,133,244,0); }
 }
 
-.task-card.status-pending .task-badge  { color: var(--j-yellow); }
-.task-card.status-running .task-badge  { color: var(--j-blue); }
-.task-card.status-completed .task-badge { color: var(--j-green); }
-.task-card.status-failed .task-badge   { color: var(--j-red); }
-.task-card.status-cancelled .task-badge { color: var(--vscode-descriptionForeground); opacity: 0.55; }
+.task-card.status-pending .task-badge          { color: var(--j-yellow); }
+.task-card.status-running .task-badge          { color: var(--j-blue); }
+.task-card.status-pendingApproval .task-badge  { color: var(--j-yellow); }
+.task-card.status-completed .task-badge        { color: var(--j-green); }
+.task-card.status-failed .task-badge           { color: var(--j-red); }
+.task-card.status-cancelled .task-badge        { color: var(--vscode-descriptionForeground); opacity: 0.55; }
 
 .task-time {
   font-size: 0.72em;
@@ -732,6 +743,32 @@ kbd {
   border-radius: 2px;
   font-size: 0.9em;
 }
+
+/* ── Approval hint ──────────────────────── */
+.task-approval-hint {
+  margin-top: 6px;
+  font-size: 0.78em;
+  color: var(--j-yellow);
+  opacity: 0.9;
+  line-height: 1.4;
+}
+
+/* ── Approve button ─────────────────────── */
+.btn-approve {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8em;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--j-green-dim);
+  color: var(--j-green);
+  border: 1px solid rgba(52,168,83,0.35);
+  transition: background var(--t);
+  white-space: nowrap;
+}
+.btn-approve:hover { background: rgba(52,168,83,0.25); }
 
 /* ── Error Toast ────────────────────────── */
 .error-toast {

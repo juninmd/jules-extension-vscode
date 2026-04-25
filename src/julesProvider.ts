@@ -1,6 +1,22 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { JulesApiClient } from './julesApiClient.js';
+import { JulesApiClient, JulesSource, JulesTask } from './julesApiClient.js';
+
+/** Shape sent to the webview — stable regardless of API changes */
+interface WebviewTask {
+  name: string;
+  id?: string;
+  title?: string;
+  prompt: string;
+  status: string;
+  createdAt?: string;
+  pullRequestUrl?: string;
+}
+
+interface WebviewSource {
+  name: string;
+  displayName: string;
+}
 
 type WebviewMessage =
   | { type: 'ready' }
@@ -9,7 +25,7 @@ type WebviewMessage =
   | { type: 'clearChat' }
   | { type: 'cancelTask'; taskId: string }
   | { type: 'deleteTask'; taskId: string }
-  | { type: 'refreshTasks'; repository?: string }
+  | { type: 'refreshTasks' }
   | { type: 'openTaskUrl'; url: string }
   | { type: 'getTask'; taskId: string }
   | { type: 'approvePlan'; taskId: string }
@@ -63,6 +79,33 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     this.webviewView?.webview.postMessage({ type: 'clearChat' });
   }
 
+  // ── Normalization helpers ─────────────────────────────────
+
+  private normalizeTask(task: JulesTask): WebviewTask {
+    const pullRequestUrl = task.outputs?.find(o => o.pullRequest?.url)?.pullRequest?.url;
+    return {
+      name: task.name,
+      id: task.id,
+      title: task.title,
+      prompt: task.prompt,
+      status: task.status ?? 'running',
+      createdAt: task.createdAt,
+      pullRequestUrl,
+    };
+  }
+
+  private normalizeSource(source: JulesSource): WebviewSource {
+    let displayName: string;
+    if (source.githubRepo) {
+      displayName = `${source.githubRepo.owner}/${source.githubRepo.repo}`;
+    } else {
+      displayName = source.name.split('/').pop() ?? source.name;
+    }
+    return { name: source.name, displayName };
+  }
+
+  // ── Status bar ───────────────────────────────────────────
+
   private updateStatusBar(): void {
     if (!this.statusBarItem) return;
     const count = this.pollingTimers.size;
@@ -74,6 +117,8 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       this.statusBarItem.tooltip = 'Jules AI — Click to open';
     }
   }
+
+  // ── Message dispatcher ───────────────────────────────────
 
   private async handleMessage(message: WebviewMessage): Promise<void> {
     switch (message.type) {
@@ -107,7 +152,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
         break;
 
       case 'refreshTasks':
-        await this.handleRefreshTasks(message.repository);
+        await this.handleRefreshTasks();
         break;
 
       case 'openTaskUrl':
@@ -132,6 +177,8 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  // ── Handlers ─────────────────────────────────────────────
+
   private async handleSendMessage(text: string, repository: string, codeContext?: string): Promise<void> {
     if (!this.apiClient.hasApiKey()) {
       this.webviewView?.webview.postMessage({
@@ -152,13 +199,16 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     this.webviewView?.webview.postMessage({ type: 'taskCreating' });
 
     try {
-      const task = await this.apiClient.createTask({
-        prompt: text,
+      const request = {
+        prompt: codeContext ? `${text}\n\n\`\`\`\n${codeContext}\n\`\`\`` : text,
         sourceContext: { source: repository },
-        codeContext
-      });
+        automationMode: 'AUTO_CREATE_PR' as const,
+      };
 
-      this.webviewView?.webview.postMessage({ type: 'taskCreated', task });
+      const task = await this.apiClient.createTask(request);
+      const normalized = this.normalizeTask(task);
+
+      this.webviewView?.webview.postMessage({ type: 'taskCreated', task: normalized });
       this.startPolling(task.name);
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -188,35 +238,35 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       this.webviewView?.webview.postMessage({ type: 'taskDeleted', taskId });
       this.updateStatusBar();
     } catch {
-      // Silently ignore — optimistic delete already happened in the UI
+      // Optimistic delete already happened in the UI
     }
   }
 
-  private async handleRefreshTasks(repository?: string): Promise<void> {
+  private async handleRefreshTasks(): Promise<void> {
     if (!this.apiClient.hasApiKey()) return;
     try {
-      let allTasks: any[] = [];
+      let allTasks: WebviewTask[] = [];
       let pageToken: string | undefined;
-      const filter = repository ? `sourceContext.source="${repository}"` : undefined;
 
       do {
-        const response = await this.apiClient.listTasks(pageToken, filter);
-        if (response.sessions) allTasks = allTasks.concat(response.sessions);
+        const response = await this.apiClient.listTasks(pageToken);
+        if (response.sessions) {
+          allTasks = allTasks.concat(response.sessions.map(t => this.normalizeTask(t)));
+        }
         pageToken = response.nextPageToken;
       } while (pageToken);
 
       this.webviewView?.webview.postMessage({ type: 'tasksList', tasks: allTasks });
 
-      // Resume polling for any active tasks returned
       for (const task of allTasks) {
-        if ((task.status === 'pending' || task.status === 'running') && !this.pollingTimers.has(task.name)) {
+        const isActive = task.status === 'pending' || task.status === 'running';
+        if (isActive && !this.pollingTimers.has(task.name)) {
           this.startPolling(task.name);
         }
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       this.webviewView?.webview.postMessage({ type: 'error', message: `Failed to load tasks: ${msg}` });
-      // Always send tasksList so the skeleton loader is dismissed
       this.webviewView?.webview.postMessage({ type: 'tasksList', tasks: [] });
     }
   }
@@ -224,13 +274,13 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   private async handleRefreshSources(): Promise<void> {
     if (!this.apiClient.hasApiKey()) return;
     try {
-      let allSources: any[] = [];
+      let allSources: WebviewSource[] = [];
       let pageToken: string | undefined;
 
       do {
         const response = await this.apiClient.listSources(pageToken);
-        if (response.sources && Array.isArray(response.sources)) {
-          allSources = allSources.concat(response.sources);
+        if (Array.isArray(response.sources)) {
+          allSources = allSources.concat(response.sources.map(s => this.normalizeSource(s)));
         }
         pageToken = response.nextPageToken;
       } while (pageToken);
@@ -246,8 +296,11 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   private async handleGetTask(taskId: string): Promise<void> {
     try {
       const task = await this.apiClient.getTask(taskId);
-      this.webviewView?.webview.postMessage({ type: 'taskUpdated', task });
-      if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+      const normalized = this.normalizeTask(task);
+      this.webviewView?.webview.postMessage({ type: 'taskUpdated', task: normalized });
+
+      const isDone = normalized.status === 'completed' || normalized.status === 'failed' || normalized.status === 'cancelled';
+      if (isDone) {
         this.stopPolling(task.name);
         this.updateStatusBar();
       }
@@ -259,7 +312,8 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   private async handleApprovePlan(taskId: string): Promise<void> {
     try {
       const task = await this.apiClient.approvePlan(taskId);
-      this.webviewView?.webview.postMessage({ type: 'taskUpdated', task });
+      const normalized = this.normalizeTask(task);
+      this.webviewView?.webview.postMessage({ type: 'taskUpdated', task: normalized });
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error occurred';
       this.webviewView?.webview.postMessage({ type: 'error', message: `Failed to approve plan: ${msg}` });
@@ -269,7 +323,8 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   private async handleSendMessageToSession(taskId: string, text: string): Promise<void> {
     try {
       const task = await this.apiClient.sendMessageToSession(taskId, text);
-      this.webviewView?.webview.postMessage({ type: 'taskUpdated', task });
+      const normalized = this.normalizeTask(task);
+      this.webviewView?.webview.postMessage({ type: 'taskUpdated', task: normalized });
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error occurred';
       this.webviewView?.webview.postMessage({ type: 'error', message: `Failed to send message: ${msg}` });
@@ -281,7 +336,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       let allActivities: unknown[] = [];
       let pageToken: string | undefined;
       do {
-        const response = await this.apiClient.getActivities(taskId, pageToken);
+        const response = await this.apiClient.listActivities(taskId, pageToken);
         if (response.activities) allActivities = allActivities.concat(response.activities);
         pageToken = response.nextPageToken;
       } while (pageToken);
@@ -292,30 +347,34 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  // ── Polling ───────────────────────────────────────────────
+
   private startPolling(taskId: string): void {
     this.stopPolling(taskId);
+
     const timer = setInterval(async () => {
       try {
         const task = await this.apiClient.getTask(taskId);
-        this.webviewView?.webview.postMessage({ type: 'taskUpdated', task });
+        const normalized = this.normalizeTask(task);
+        this.webviewView?.webview.postMessage({ type: 'taskUpdated', task: normalized });
 
-        if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+        if (normalized.status === 'completed' || normalized.status === 'failed' || normalized.status === 'cancelled') {
           this.stopPolling(task.name);
           this.updateStatusBar();
 
-          if (task.status === 'completed') {
-            const actions: string[] = task.pullRequestUrl ? ['Open PR'] : [];
+          if (normalized.status === 'completed') {
+            const actions: string[] = normalized.pullRequestUrl ? ['Open PR'] : [];
             const action = await vscode.window.showInformationMessage(
-              `✅ Jules finished: "${task.prompt.substring(0, 40)}…"`,
+              `Jules finished: "${normalized.prompt.substring(0, 50)}…"`,
               ...actions
             );
-            if (action === 'Open PR' && task.pullRequestUrl) {
-              await vscode.env.openExternal(vscode.Uri.parse(task.pullRequestUrl));
+            if (action === 'Open PR' && normalized.pullRequestUrl) {
+              await vscode.env.openExternal(vscode.Uri.parse(normalized.pullRequestUrl));
             }
           }
-        } else if (task.status === 'pendingApproval') {
+        } else if (normalized.status === 'pendingApproval') {
           vscode.window.showInformationMessage(
-            `Jules is waiting for plan approval: "${task.prompt.substring(0, 40)}…"`,
+            `Jules is waiting for plan approval: "${normalized.prompt.substring(0, 40)}…"`,
             'Approve'
           ).then(action => {
             if (action === 'Approve') {
@@ -339,6 +398,8 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       this.pollingTimers.delete(taskId);
     }
   }
+
+  // ── HTML ─────────────────────────────────────────────────
 
   private getMediaUri(webview: vscode.Webview, filename: string): vscode.Uri {
     return webview.asWebviewUri(

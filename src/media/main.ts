@@ -1,4 +1,4 @@
-// Jules AI Extension — Premium Webview Script
+// Jules AI Extension — Webview Script
 
 declare function acquireVsCodeApi(): {
   postMessage(message: unknown): void;
@@ -14,12 +14,11 @@ declare function acquireVsCodeApi(): {
 
   interface Task {
     name: string;
+    id?: string;
+    title?: string;
     prompt: string;
-    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-    createdAt: string;
-    updatedAt: string;
-    result?: string;
-    error?: string;
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'pendingApproval';
+    createdAt?: string;
     pullRequestUrl?: string;
   }
 
@@ -37,23 +36,23 @@ declare function acquireVsCodeApi(): {
   };
 
   // ── DOM refs ─────────────────────────────────────────────
-  const setupScreen  = document.getElementById('setup-screen')!;
-  const mainScreen   = document.getElementById('main-screen')!;
-  const btnConfigKey = document.getElementById('btn-configure-key')!;
-  const linkPortal   = document.getElementById('link-portal')!;
-  const btnRefresh   = document.getElementById('btn-refresh')!;
-  const btnSettings  = document.getElementById('btn-settings')!;
-  const repoSearch   = document.getElementById('repo-search') as HTMLInputElement;
-  const repoSelect   = document.getElementById('repo-select') as HTMLSelectElement;
-  const tabBtns      = document.querySelectorAll<HTMLButtonElement>('.tab-btn');
-  const tasksArea    = document.getElementById('tasks-area')!;
+  const setupScreen    = document.getElementById('setup-screen')!;
+  const mainScreen     = document.getElementById('main-screen')!;
+  const btnConfigKey   = document.getElementById('btn-configure-key')!;
+  const linkPortal     = document.getElementById('link-portal')!;
+  const btnRefresh     = document.getElementById('btn-refresh')!;
+  const btnSettings    = document.getElementById('btn-settings')!;
+  const repoSearch     = document.getElementById('repo-search') as HTMLInputElement;
+  const repoSelect     = document.getElementById('repo-select') as HTMLSelectElement;
+  const tabBtns        = document.querySelectorAll<HTMLButtonElement>('.tab-btn');
+  const tasksArea      = document.getElementById('tasks-area')!;
   const skeletonLoader = document.getElementById('skeleton-loader')!;
-  const codeBanner   = document.getElementById('code-context-banner')!;
+  const codeBanner     = document.getElementById('code-context-banner')!;
   const codeBannerText = document.getElementById('code-banner-text')!;
-  const btnClearCtx  = document.getElementById('btn-clear-context')!;
-  const textarea     = document.getElementById('message-input') as HTMLTextAreaElement;
-  const btnSend      = document.getElementById('btn-send') as HTMLButtonElement;
-  const charCountEl  = document.getElementById('char-count')!;
+  const btnClearCtx    = document.getElementById('btn-clear-context')!;
+  const textarea       = document.getElementById('message-input') as HTMLTextAreaElement;
+  const btnSend        = document.getElementById('btn-send') as HTMLButtonElement;
+  const charCountEl    = document.getElementById('char-count')!;
 
   // ── Init ─────────────────────────────────────────────────
   function init() {
@@ -113,7 +112,7 @@ declare function acquireVsCodeApi(): {
   function getFiltered(): Task[] {
     switch (state.currentTab) {
       case 'active':
-        return state.allTasks.filter(t => t.status === 'pending' || t.status === 'running');
+        return state.allTasks.filter(t => t.status === 'pending' || t.status === 'running' || t.status === 'pendingApproval');
       case 'done':
         return state.allTasks.filter(t => t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled');
       default:
@@ -122,7 +121,7 @@ declare function acquireVsCodeApi(): {
   }
 
   function updateTabCounts() {
-    const active = state.allTasks.filter(t => t.status === 'pending' || t.status === 'running').length;
+    const active = state.allTasks.filter(t => t.status === 'pending' || t.status === 'running' || t.status === 'pendingApproval').length;
     const done   = state.allTasks.filter(t => t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled').length;
 
     (document.querySelector('[data-tab="all"] .tab-count') as HTMLElement).textContent  = String(state.allTasks.length);
@@ -141,14 +140,12 @@ declare function acquireVsCodeApi(): {
 
     vscode.postMessage({ type: 'sendMessage', text, repository: repo, codeContext: state.codeContext ?? undefined });
 
-    // Optimistic pending card
     const tempId = 'creating-' + Date.now();
     const tempTask: Task = {
       name: tempId,
       prompt: text,
       status: 'pending',
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     };
 
     state.allTasks.unshift(tempTask);
@@ -167,7 +164,7 @@ declare function acquireVsCodeApi(): {
   }
 
   function refreshTasks() {
-    vscode.postMessage({ type: 'refreshTasks', repository: repoSelect.value || undefined });
+    vscode.postMessage({ type: 'refreshTasks' });
   }
 
   // ── Render ───────────────────────────────────────────────
@@ -207,7 +204,12 @@ declare function acquireVsCodeApi(): {
   }
 
   const STATUS_LABELS: Record<string, string> = {
-    pending: 'Pending', running: 'Running', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled',
+    pending:        'Pending',
+    running:        'Running',
+    pendingApproval:'Needs Approval',
+    completed:      'Completed',
+    failed:         'Failed',
+    cancelled:      'Cancelled',
   };
 
   function buildCard(task: Task): HTMLElement {
@@ -215,12 +217,14 @@ declare function acquireVsCodeApi(): {
     card.className = `task-card status-${task.status} entering`;
     card.dataset.taskId = task.name;
 
-    const isActive    = task.status === 'pending' || task.status === 'running';
-    const isCreating  = task.name.startsWith('creating-');
-    const isDone      = !isActive;
-    const hasDetails  = !!(task.result || task.error || task.pullRequestUrl || isDone);
-    const timeStr     = task.createdAt ? formatTime(task.createdAt) : '';
-    const statusLabel = STATUS_LABELS[task.status] ?? task.status;
+    const isActive          = task.status === 'pending' || task.status === 'running';
+    const isPendingApproval = task.status === 'pendingApproval';
+    const isCreating        = task.name.startsWith('creating-');
+    const isDone            = task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled';
+    const hasDetails        = !!(task.pullRequestUrl || isDone || isPendingApproval);
+    const timeStr           = task.createdAt ? formatTime(task.createdAt) : '';
+    const statusLabel       = STATUS_LABELS[task.status] ?? task.status;
+    const displayTitle      = task.title || task.prompt;
 
     requestAnimationFrame(() => requestAnimationFrame(() => card.classList.remove('entering')));
 
@@ -234,7 +238,7 @@ declare function acquireVsCodeApi(): {
           </span>
           <span class="task-time">${escHtml(timeStr)}</span>
           <div class="task-top-actions">
-            ${isActive && !isCreating
+            ${(isActive || isPendingApproval) && !isCreating
               ? `<button class="icon-btn btn-cancel" title="Cancel" data-id="${escHtml(task.name)}">
                   <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.5 9.793L10.793 11.5 8 8.707 5.207 11.5 4.5 10.793 7.293 8 4.5 5.207l.707-.707L8 7.293l2.793-2.793.707.707L8.707 8z"/></svg>
                 </button>`
@@ -244,19 +248,26 @@ declare function acquireVsCodeApi(): {
               : ''}
           </div>
         </div>
-        <div class="task-prompt">${escHtml(task.prompt || 'Task')}</div>
+        <div class="task-prompt">${escHtml(displayTitle)}</div>
         ${task.status === 'running'
           ? `<div class="task-progress">
               <div class="progress-track"><div class="progress-fill"></div></div>
               <span class="progress-lbl">Working…</span>
             </div>`
           : ''}
+        ${isPendingApproval
+          ? `<div class="task-approval-hint">Jules has generated a plan and is waiting for your approval.</div>`
+          : ''}
       </div>
       ${hasDetails ? `
       <div class="task-details">
-        ${task.result ? `<div class="task-result">${escHtml(task.result)}</div>` : ''}
-        ${task.error  ? `<div class="task-error">⚠ ${escHtml(task.error)}</div>` : ''}
         <div class="task-action-row">
+          ${isPendingApproval && !isCreating
+            ? `<button class="btn-approve" data-id="${escHtml(task.name)}">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/></svg>
+                Approve Plan
+              </button>`
+            : ''}
           ${task.pullRequestUrl
             ? `<button class="btn-pr" data-url="${escHtml(task.pullRequestUrl)}">
                 <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path fill-rule="evenodd" d="M7.177 3.073L9.573.677A.25.25 0 0110 .854v4.792a.25.25 0 01-.427.177L7.177 3.427a.25.25 0 010-.354zM3.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM11 2.5h-1V4h1a1 1 0 011 1v5.628a2.251 2.251 0 101.5 0V5A2.5 2.5 0 0011 2.5zm1 10.25a.75.75 0 111.5 0 .75.75 0 01-1.5 0z"/></svg>
@@ -286,6 +297,16 @@ declare function acquireVsCodeApi(): {
       vscode.postMessage({ type: 'cancelTask', taskId: task.name });
     });
 
+    // Approve plan
+    card.querySelector('.btn-approve')?.addEventListener('click', (e: Event) => {
+      e.stopPropagation();
+      vscode.postMessage({ type: 'approvePlan', taskId: task.name });
+      // Optimistic update
+      task.status = 'running';
+      card.className = `task-card status-running`;
+      renderTasks();
+    });
+
     // PR link
     card.querySelector('.btn-pr')?.addEventListener('click', () => {
       vscode.postMessage({ type: 'openTaskUrl', url: task.pullRequestUrl! });
@@ -306,7 +327,7 @@ declare function acquireVsCodeApi(): {
   function upsertTask(task: Task) {
     const idx = state.allTasks.findIndex(t => t.name === task.name);
     if (idx >= 0) {
-      state.allTasks[idx] = task;
+      state.allTasks[idx] = { ...state.allTasks[idx], ...task };
     } else {
       const cIdx = state.allTasks.findIndex(t => t.name.startsWith('creating-'));
       if (cIdx >= 0) state.allTasks[cIdx] = task;
@@ -358,7 +379,7 @@ declare function acquireVsCodeApi(): {
     filtered.forEach(src => {
       const opt = document.createElement('option');
       opt.value = src.name;
-      opt.textContent = src.displayName || src.name?.split('/').pop() || 'Unknown';
+      opt.textContent = src.displayName || src.name;
       repoSelect.appendChild(opt);
     });
 
@@ -468,13 +489,13 @@ declare function acquireVsCodeApi(): {
 
       case 'taskCreated':
       case 'taskUpdated':
-        upsertTask(msg.task);
+        upsertTask(msg.task as Task);
         updateTabCounts();
         renderTasks();
         break;
 
       case 'tasksList':
-        setTasksList(msg.tasks ?? []);
+        setTasksList((msg.tasks ?? []) as Task[]);
         break;
 
       case 'sourcesList':
