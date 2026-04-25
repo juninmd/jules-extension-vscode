@@ -2,7 +2,11 @@ import * as vscode from 'vscode';
 
 export interface JulesSource {
   name: string;
-  displayName: string;
+  id: string;
+  githubRepo?: {
+    owner: string;
+    repo: string;
+  };
 }
 
 export interface ListSourcesResponse {
@@ -10,30 +14,88 @@ export interface ListSourcesResponse {
   nextPageToken?: string;
 }
 
+export interface JulesPullRequest {
+  url: string;
+  title?: string;
+  description?: string;
+}
+
+export interface JulesSessionOutput {
+  pullRequest?: JulesPullRequest;
+}
+
 export interface JulesTask {
   name: string;
+  id?: string;
+  title?: string;
   prompt: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-  createdAt: string;
-  updatedAt: string;
-  result?: string;
-  error?: string;
-  pullRequestUrl?: string;
+  status?: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'pendingApproval';
+  createdAt?: string;
+  updatedAt?: string;
+  sourceContext?: {
+    source: string;
+    githubRepoContext?: {
+      startingBranch?: string;
+    };
+  };
+  outputs?: JulesSessionOutput[];
+}
+
+export interface ListTasksResponse {
+  sessions: JulesTask[];
+  nextPageToken?: string;
+}
+
+export interface PlanStep {
+  id: string;
+  title: string;
+  index: number;
+}
+
+export interface JulesActivity {
+  name: string;
+  id?: string;
+  createTime: string;
+  originator?: 'agent' | 'user';
+  artifacts?: Array<{
+    bashOutput?: { command: string; output: string; exitCode: number };
+    changeSet?: {
+      source: string;
+      gitPatch?: {
+        unidiffPatch: string;
+        baseCommitId: string;
+        suggestedCommitMessage: string;
+      };
+    };
+    media?: { data: string; mimeType: string };
+  }>;
+  planGenerated?: {
+    plan: {
+      id: string;
+      steps: PlanStep[];
+    };
+  };
+  planApproved?: { planId: string };
+  progressUpdated?: { title: string; description: string };
+  sessionCompleted?: Record<string, never>;
+}
+
+export interface ListActivitiesResponse {
+  activities: JulesActivity[];
+  nextPageToken?: string;
 }
 
 export interface CreateTaskRequest {
   prompt: string;
   sourceContext: {
     source: string;
+    githubRepoContext?: {
+      startingBranch?: string;
+    };
   };
-  branch?: string;
-  language?: string;
-  codeContext?: string;
-}
-
-export interface ListTasksResponse {
-  sessions: JulesTask[];
-  nextPageToken?: string;
+  automationMode?: 'AUTO_CREATE_PR';
+  requirePlanApproval?: boolean;
+  title?: string;
 }
 
 export class JulesApiClient {
@@ -59,7 +121,6 @@ export class JulesApiClient {
     }
   }
 
-  /** Wait until the API key has been loaded from secret storage. */
   public async waitForInit(): Promise<void> {
     await this.keyLoaded;
   }
@@ -76,27 +137,26 @@ export class JulesApiClient {
     return {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': this.apiKey,
-      'X-Jules-Client': 'vscode-extension/0.1.0'
     };
   }
 
-  private async request<T>(
-    method: string,
-    path: string,
-    body?: unknown
-  ): Promise<T> {
+  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const url = `${this.baseUrl}${path}`;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
 
     const options: RequestInit = {
       method,
       headers: this.getHeaders(),
+      signal: controller.signal,
     };
 
     if (body !== undefined) {
       options.body = JSON.stringify(body);
     }
 
-    const response = await fetch(url, options);
+    const response = await fetch(url, options).finally(() => clearTimeout(timer));
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -122,39 +182,58 @@ export class JulesApiClient {
       throw new Error(errorMessage);
     }
 
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
     return response.json() as Promise<T>;
+  }
+
+  public async listSources(pageToken?: string): Promise<ListSourcesResponse> {
+    const query = pageToken ? `?pageToken=${encodeURIComponent(pageToken)}` : '';
+    return this.request<ListSourcesResponse>('GET', `/sources${query}`);
   }
 
   public async createTask(request: CreateTaskRequest): Promise<JulesTask> {
     return this.request<JulesTask>('POST', '/sessions', request);
   }
 
-  public async getTask(taskId: string): Promise<JulesTask> {
-    const path = taskId.startsWith('sessions/') ? `/${taskId}` : `/sessions/${taskId}`;
-    return this.request<JulesTask>('GET', path);
-  }
-
-  public async listTasks(pageToken?: string, filter?: string): Promise<ListTasksResponse> {
+  public async listTasks(pageToken?: string, pageSize?: number): Promise<ListTasksResponse> {
     const params = new URLSearchParams();
     if (pageToken) params.append('pageToken', pageToken);
-    if (filter) params.append('filter', filter);
-    
+    if (pageSize) params.append('pageSize', String(pageSize));
     const query = params.toString() ? `?${params.toString()}` : '';
     return this.request<ListTasksResponse>('GET', `/sessions${query}`);
   }
 
-  public async listSources(pageToken?: string): Promise<ListSourcesResponse> {
-    const queryParams = pageToken ? `?pageToken=${encodeURIComponent(pageToken)}` : '';
-    return this.request<ListSourcesResponse>('GET', `/sources${queryParams}`);
+  public async getTask(sessionId: string): Promise<JulesTask> {
+    const path = sessionId.startsWith('sessions/') ? `/${sessionId}` : `/sessions/${sessionId}`;
+    return this.request<JulesTask>('GET', path);
   }
 
-  public async cancelTask(taskId: string): Promise<void> {
-    const path = taskId.startsWith('sessions/') ? `/${taskId}:cancel` : `/sessions/${taskId}:cancel`;
+  public async approvePlan(sessionId: string): Promise<JulesTask> {
+    const path = sessionId.startsWith('sessions/') ? `/${sessionId}:approvePlan` : `/sessions/${sessionId}:approvePlan`;
+    return this.request<JulesTask>('POST', path);
+  }
+
+  public async listActivities(sessionId: string, pageToken?: string): Promise<ListActivitiesResponse> {
+    const idPart = sessionId.startsWith('sessions/') ? sessionId : `sessions/${sessionId}`;
+    const query = pageToken ? `?pageToken=${encodeURIComponent(pageToken)}` : '';
+    return this.request<ListActivitiesResponse>('GET', `/${idPart}/activities${query}`);
+  }
+
+  public async sendMessageToSession(sessionId: string, prompt: string): Promise<JulesTask> {
+    const path = sessionId.startsWith('sessions/') ? `/${sessionId}:sendMessage` : `/sessions/${sessionId}:sendMessage`;
+    return this.request<JulesTask>('POST', path, { prompt });
+  }
+
+  public async cancelTask(sessionId: string): Promise<void> {
+    const path = sessionId.startsWith('sessions/') ? `/${sessionId}:cancel` : `/sessions/${sessionId}:cancel`;
     await this.request<unknown>('POST', path);
   }
 
-  public async deleteTask(taskId: string): Promise<void> {
-    const path = taskId.startsWith('sessions/') ? `/${taskId}` : `/sessions/${taskId}`;
+  public async deleteTask(sessionId: string): Promise<void> {
+    const path = sessionId.startsWith('sessions/') ? `/${sessionId}` : `/sessions/${sessionId}`;
     await this.request<unknown>('DELETE', path);
   }
 }

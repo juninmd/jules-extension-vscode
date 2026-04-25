@@ -11,7 +11,10 @@ type WebviewMessage =
   | { type: 'deleteTask'; taskId: string }
   | { type: 'refreshTasks'; repository?: string }
   | { type: 'openTaskUrl'; url: string }
-  | { type: 'getTask'; taskId: string };
+  | { type: 'getTask'; taskId: string }
+  | { type: 'approvePlan'; taskId: string }
+  | { type: 'sendMessageToSession'; taskId: string; text: string }
+  | { type: 'getActivities'; taskId: string };
 
 export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'jules.chatView';
@@ -114,6 +117,18 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       case 'getTask':
         await this.handleGetTask(message.taskId);
         break;
+
+      case 'approvePlan':
+        await this.handleApprovePlan(message.taskId);
+        break;
+
+      case 'sendMessageToSession':
+        await this.handleSendMessageToSession(message.taskId, message.text);
+        break;
+
+      case 'getActivities':
+        await this.handleGetActivities(message.taskId);
+        break;
     }
   }
 
@@ -199,8 +214,10 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
         }
       }
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error occurred';
-      this.webviewView?.webview.postMessage({ type: 'error', message: `Failed to fetch tasks: ${msg}` });
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      this.webviewView?.webview.postMessage({ type: 'error', message: `Failed to load tasks: ${msg}` });
+      // Always send tasksList so the skeleton loader is dismissed
+      this.webviewView?.webview.postMessage({ type: 'tasksList', tasks: [] });
     }
   }
 
@@ -220,6 +237,8 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 
       this.webviewView?.webview.postMessage({ type: 'sourcesList', sources: allSources });
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      this.webviewView?.webview.postMessage({ type: 'error', message: `Failed to load repositories: ${msg}` });
       this.webviewView?.webview.postMessage({ type: 'sourcesList', sources: [] });
     }
   }
@@ -234,6 +253,42 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
       }
     } catch {
       // Silently ignore
+    }
+  }
+
+  private async handleApprovePlan(taskId: string): Promise<void> {
+    try {
+      const task = await this.apiClient.approvePlan(taskId);
+      this.webviewView?.webview.postMessage({ type: 'taskUpdated', task });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.webviewView?.webview.postMessage({ type: 'error', message: `Failed to approve plan: ${msg}` });
+    }
+  }
+
+  private async handleSendMessageToSession(taskId: string, text: string): Promise<void> {
+    try {
+      const task = await this.apiClient.sendMessageToSession(taskId, text);
+      this.webviewView?.webview.postMessage({ type: 'taskUpdated', task });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.webviewView?.webview.postMessage({ type: 'error', message: `Failed to send message: ${msg}` });
+    }
+  }
+
+  private async handleGetActivities(taskId: string): Promise<void> {
+    try {
+      let allActivities: unknown[] = [];
+      let pageToken: string | undefined;
+      do {
+        const response = await this.apiClient.getActivities(taskId, pageToken);
+        if (response.activities) allActivities = allActivities.concat(response.activities);
+        pageToken = response.nextPageToken;
+      } while (pageToken);
+      this.webviewView?.webview.postMessage({ type: 'activitiesList', taskId, activities: allActivities });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.webviewView?.webview.postMessage({ type: 'error', message: `Failed to load activities: ${msg}` });
     }
   }
 
@@ -258,6 +313,15 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
               await vscode.env.openExternal(vscode.Uri.parse(task.pullRequestUrl));
             }
           }
+        } else if (task.status === 'pendingApproval') {
+          vscode.window.showInformationMessage(
+            `Jules is waiting for plan approval: "${task.prompt.substring(0, 40)}…"`,
+            'Approve'
+          ).then(action => {
+            if (action === 'Approve') {
+              void this.handleApprovePlan(task.name);
+            }
+          });
         }
       } catch {
         // Silently ignore polling errors
@@ -292,7 +356,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src ${webview.cspSource} 'nonce-${nonce}'; img-src ${webview.cspSource} https: data:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src ${webview.cspSource} 'nonce-${nonce}'; img-src ${webview.cspSource} https: data:; connect-src ${webview.cspSource};">
   <link rel="stylesheet" href="${styleUri}">
   <title>Jules AI</title>
 </head>
