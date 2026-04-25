@@ -144,7 +144,7 @@ export class JulesApiClient {
     const url = `${this.baseUrl}${path}`;
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30000);
+    const timer = setTimeout(() => controller.abort(), 60000);
 
     const options: RequestInit = {
       method,
