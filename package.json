@@ -104,7 +104,7 @@
       "properties": {
         "jules.apiBaseUrl": {
           "type": "string",
-          "default": "https://jules.googleapis.com/v1",
+          "default": "https://jules.googleapis.com/v1alpha",
           "description": "Jules API base URL (advanced)",
           "scope": "application"
         },

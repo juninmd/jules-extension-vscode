@@ -8,6 +8,7 @@ type WebviewMessage =
   | { type: 'configureApiKey' }
   | { type: 'clearChat' }
   | { type: 'cancelTask'; taskId: string }
+  | { type: 'deleteTask'; taskId: string }
   | { type: 'refreshTasks'; repository?: string }
   | { type: 'openTaskUrl'; url: string }
   | { type: 'getTask'; taskId: string };
@@ -20,7 +21,8 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly apiClient: JulesApiClient
+    private readonly apiClient: JulesApiClient,
+    private readonly statusBarItem?: vscode.StatusBarItem
   ) {}
 
   public resolveWebviewView(
@@ -47,22 +49,27 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   public notifyApiKeyChanged(hasKey: boolean): void {
-    this.webviewView?.webview.postMessage({
-      type: 'apiKeyStatus',
-      hasKey
-    });
+    this.webviewView?.webview.postMessage({ type: 'apiKeyStatus', hasKey });
   }
 
   public sendSelectedCode(code: string, language: string): void {
-    this.webviewView?.webview.postMessage({
-      type: 'selectedCode',
-      code,
-      language
-    });
+    this.webviewView?.webview.postMessage({ type: 'selectedCode', code, language });
   }
 
   public clearChat(): void {
     this.webviewView?.webview.postMessage({ type: 'clearChat' });
+  }
+
+  private updateStatusBar(): void {
+    if (!this.statusBarItem) return;
+    const count = this.pollingTimers.size;
+    if (count > 0) {
+      this.statusBarItem.text = `$(sync~spin) Jules: ${count}`;
+      this.statusBarItem.tooltip = `Jules AI — ${count} task${count > 1 ? 's' : ''} running`;
+    } else {
+      this.statusBarItem.text = `$(sparkle) Jules`;
+      this.statusBarItem.tooltip = 'Jules AI — Click to open';
+    }
   }
 
   private async handleMessage(message: WebviewMessage): Promise<void> {
@@ -92,6 +99,10 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
         await this.handleCancelTask(message.taskId);
         break;
 
+      case 'deleteTask':
+        await this.handleDeleteTask(message.taskId);
+        break;
+
       case 'refreshTasks':
         await this.handleRefreshTasks(message.repository);
         break;
@@ -116,11 +127,11 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     if (!repository) {
-        this.webviewView?.webview.postMessage({
-            type: 'error',
-            message: 'Please select a repository first.'
-        });
-        return;
+      this.webviewView?.webview.postMessage({
+        type: 'error',
+        message: 'Please select a repository first.'
+      });
+      return;
     }
 
     this.webviewView?.webview.postMessage({ type: 'taskCreating' });
@@ -128,25 +139,15 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     try {
       const task = await this.apiClient.createTask({
         prompt: text,
-        sourceContext: {
-            source: repository
-        },
-        codeContext: codeContext
+        sourceContext: { source: repository },
+        codeContext
       });
 
-      this.webviewView?.webview.postMessage({
-        type: 'taskCreated',
-        task
-      });
-
-      // Start polling for task status
+      this.webviewView?.webview.postMessage({ type: 'taskCreated', task });
       this.startPolling(task.name);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error occurred';
-      this.webviewView?.webview.postMessage({
-        type: 'error',
-        message: `Failed to create task: ${message}`
-      });
+      const msg = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.webviewView?.webview.postMessage({ type: 'error', message: `Failed to create task: ${msg}` });
     }
   }
 
@@ -158,82 +159,81 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
         type: 'taskUpdated',
         task: { name: taskId, status: 'cancelled' }
       });
+      this.updateStatusBar();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error occurred';
-      this.webviewView?.webview.postMessage({
-        type: 'error',
-        message: `Failed to cancel task: ${message}`
-      });
+      const msg = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.webviewView?.webview.postMessage({ type: 'error', message: `Failed to cancel task: ${msg}` });
+    }
+  }
+
+  private async handleDeleteTask(taskId: string): Promise<void> {
+    try {
+      this.stopPolling(taskId);
+      await this.apiClient.deleteTask(taskId);
+      this.webviewView?.webview.postMessage({ type: 'taskDeleted', taskId });
+      this.updateStatusBar();
+    } catch {
+      // Silently ignore — optimistic delete already happened in the UI
     }
   }
 
   private async handleRefreshTasks(repository?: string): Promise<void> {
-    if (!this.apiClient.hasApiKey()) {
-      return;
-    }
+    if (!this.apiClient.hasApiKey()) return;
     try {
       let allTasks: any[] = [];
       let pageToken: string | undefined;
       const filter = repository ? `sourceContext.source="${repository}"` : undefined;
 
       do {
-          const response = await this.apiClient.listTasks(pageToken, filter);
-          if (response.sessions) {
-              allTasks = allTasks.concat(response.sessions);
-          }
-          pageToken = response.nextPageToken;
+        const response = await this.apiClient.listTasks(pageToken, filter);
+        if (response.sessions) allTasks = allTasks.concat(response.sessions);
+        pageToken = response.nextPageToken;
       } while (pageToken);
 
-      this.webviewView?.webview.postMessage({
-        type: 'tasksList',
-        tasks: allTasks
-      });
+      this.webviewView?.webview.postMessage({ type: 'tasksList', tasks: allTasks });
+
+      // Resume polling for any active tasks returned
+      for (const task of allTasks) {
+        if ((task.status === 'pending' || task.status === 'running') && !this.pollingTimers.has(task.name)) {
+          this.startPolling(task.name);
+        }
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error occurred';
-      this.webviewView?.webview.postMessage({
-        type: 'error',
-        message: `Failed to fetch tasks: ${message}`
-      });
+      const msg = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.webviewView?.webview.postMessage({ type: 'error', message: `Failed to fetch tasks: ${msg}` });
     }
   }
 
   private async handleRefreshSources(): Promise<void> {
-    if (!this.apiClient.hasApiKey()) {
-      return;
-    }
+    if (!this.apiClient.hasApiKey()) return;
     try {
       let allSources: any[] = [];
       let pageToken: string | undefined;
 
       do {
-          const response = await this.apiClient.listSources(pageToken);
-          if (response.sources) {
-              allSources = allSources.concat(response.sources);
-          }
-          pageToken = response.nextPageToken;
+        const response = await this.apiClient.listSources(pageToken);
+        if (response.sources && Array.isArray(response.sources)) {
+          allSources = allSources.concat(response.sources);
+        }
+        pageToken = response.nextPageToken;
       } while (pageToken);
 
-      this.webviewView?.webview.postMessage({
-        type: 'sourcesList',
-        sources: allSources
-      });
+      this.webviewView?.webview.postMessage({ type: 'sourcesList', sources: allSources });
     } catch (error) {
-        // Silently ignore or notify error
+      this.webviewView?.webview.postMessage({ type: 'sourcesList', sources: [] });
     }
   }
 
   private async handleGetTask(taskId: string): Promise<void> {
     try {
       const task = await this.apiClient.getTask(taskId);
-      this.webviewView?.webview.postMessage({
-        type: 'taskUpdated',
-        task
-      });
+      this.webviewView?.webview.postMessage({ type: 'taskUpdated', task });
       if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
         this.stopPolling(task.name);
+        this.updateStatusBar();
       }
-    } catch (error) {
-      // Silently ignore polling errors
+    } catch {
+      // Silently ignore
     }
   }
 
@@ -242,19 +242,16 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     const timer = setInterval(async () => {
       try {
         const task = await this.apiClient.getTask(taskId);
-        this.webviewView?.webview.postMessage({
-          type: 'taskUpdated',
-          task
-        });
+        this.webviewView?.webview.postMessage({ type: 'taskUpdated', task });
+
         if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
           this.stopPolling(task.name);
+          this.updateStatusBar();
+
           if (task.status === 'completed') {
-            const actions: string[] = [];
-            if (task.pullRequestUrl) {
-              actions.push('Open PR');
-            }
+            const actions: string[] = task.pullRequestUrl ? ['Open PR'] : [];
             const action = await vscode.window.showInformationMessage(
-              `✅ Jules task "${task.prompt.substring(0, 30)}..." completed!`,
+              `✅ Jules finished: "${task.prompt.substring(0, 40)}…"`,
               ...actions
             );
             if (action === 'Open PR' && task.pullRequestUrl) {
@@ -268,6 +265,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     }, 5000);
 
     this.pollingTimers.set(taskId, timer);
+    this.updateStatusBar();
   }
 
   private stopPolling(taskId: string): void {
@@ -279,8 +277,9 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private getMediaUri(webview: vscode.Webview, filename: string): vscode.Uri {
-    const mediaPath = path.join(this.context.extensionPath, 'out', 'media', filename);
-    return webview.asWebviewUri(vscode.Uri.file(mediaPath));
+    return webview.asWebviewUri(
+      vscode.Uri.file(path.join(this.context.extensionPath, 'out', 'media', filename))
+    );
   }
 
   private getHtmlContent(webview: vscode.Webview): string {
@@ -288,7 +287,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     const styleUri = this.getMediaUri(webview, 'style.css');
     const scriptUri = this.getMediaUri(webview, 'main.js');
 
-    return /* html */ `<!DOCTYPE html>
+    return /* html */`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -298,120 +297,145 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
   <title>Jules AI</title>
 </head>
 <body>
-  <!-- Setup Screen -->
-  <div id="setup-screen" class="screen">
-    <div class="setup-container">
-      <div class="setup-logo">
-        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="24" cy="24" r="22" fill="url(#grad1)" />
-          <text x="24" y="30" text-anchor="middle" font-size="20" font-family="monospace" fill="white" font-weight="bold">J</text>
-          <defs>
-            <linearGradient id="grad1" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#4285F4"/>
-              <stop offset="100%" stop-color="#0F9D58"/>
-            </linearGradient>
-          </defs>
-        </svg>
-      </div>
-      <h1 class="setup-title">Jules AI Agent</h1>
-      <p class="setup-subtitle">Your AI coding assistant from Google, right inside VS Code.</p>
-      <div class="setup-steps">
-        <div class="setup-step">
-          <span class="step-number">1</span>
-          <span class="step-text">Get your API key from <a href="#" class="link" id="link-portal">jules.google</a></span>
-        </div>
-        <div class="setup-step">
-          <span class="step-number">2</span>
-          <span class="step-text">Click the button below to configure it</span>
-        </div>
-        <div class="setup-step">
-          <span class="step-number">3</span>
-          <span class="step-text">Start automating your coding tasks!</span>
-        </div>
-      </div>
-      <button id="btn-configure-key" class="btn btn-primary btn-large">
-        <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 1.5a5.5 5.5 0 110 11 5.5 5.5 0 010-11zM7 5h2v4H7zm0 5h2v2H7z"/></svg>
-        Configure API Key
+
+<!-- ═══ SETUP SCREEN ═══ -->
+<div id="setup-screen" class="screen">
+  <div class="setup-content">
+    <div class="setup-logo">
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="32" cy="32" r="30" fill="url(#sg)"/>
+        <text x="32" y="42" text-anchor="middle" font-size="28" font-family="monospace" fill="white" font-weight="800">J</text>
+        <defs>
+          <linearGradient id="sg" x1="2" y1="2" x2="62" y2="62" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#4285F4"/>
+            <stop offset="100%" stop-color="#34A853"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+    <h1 class="setup-title">Jules AI Agent</h1>
+    <p class="setup-subtitle">Google's AI coding agent — write code, fix bugs, and open PRs automatically.</p>
+    <ol class="setup-steps">
+      <li class="setup-step">
+        <span class="step-num">1</span>
+        <span class="step-desc">Get your API key at <a href="#" id="link-portal">jules.google.com</a></span>
+      </li>
+      <li class="setup-step">
+        <span class="step-num">2</span>
+        <span class="step-desc">Click the button below to configure it securely</span>
+      </li>
+      <li class="setup-step">
+        <span class="step-num">3</span>
+        <span class="step-desc">Select a repository and start automating!</span>
+      </li>
+    </ol>
+    <button id="btn-configure-key" class="btn btn-primary lg">
+      <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M11.5 1a4.5 4.5 0 011.563 8.71l.407.406a.5.5 0 010 .707l-.5.5a.5.5 0 01-.707 0l-.375-.376-.375.376a.5.5 0 01-.707 0l-.5-.5a.5.5 0 010-.707l.406-.407A4.5 4.5 0 1111.5 1zm0 1.5a3 3 0 100 6 3 3 0 000-6zm0 1.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/></svg>
+      Configure API Key
+    </button>
+  </div>
+</div>
+
+<!-- ═══ MAIN SCREEN ═══ -->
+<div id="main-screen" class="screen hidden">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-brand">
+      <svg class="brand-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="11" fill="url(#hg)"/>
+        <text x="12" y="16.5" text-anchor="middle" font-size="11" font-family="monospace" fill="white" font-weight="800">J</text>
+        <defs>
+          <linearGradient id="hg" x1="1" y1="1" x2="23" y2="23" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#4285F4"/>
+            <stop offset="100%" stop-color="#34A853"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <span class="brand-name">Jules</span>
+      <span class="brand-badge">AI</span>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="btn-refresh" title="Refresh tasks">
+        <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M13.451 5.609l-.808-.588C11.584 3.601 9.895 2.75 8 2.75c-2.757 0-5.116 1.814-5.855 4.385l-.014.054a5.15 5.15 0 00-.132 1.138C2.0 11.177 4.797 14 8.25 14c1.491 0 2.836-.594 3.806-1.553l.813.836A6.389 6.389 0 018.25 15.5C4.248 15.5 1 12.266 1 8.25c0-.49.058-.964.167-1.418C1.93 3.98 4.793 1.5 8.25 1.5c2.207 0 4.17 1.043 5.422 2.658l.779-.566v3.017z"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-settings" title="Configure API Key">
+        <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.8-1.3 2 .8.8 2-1.3.8.3.4 2.3h1.2l.5-2.4.8-.3 2 1.3.8-.8-1.3-2 .3-.8 2.3-.4V7.4l-2.4-.5-.3-.8 1.3-2-.8-.8-2 1.3-.7-.2zM8 10a2 2 0 110-4 2 2 0 010 4z"/></svg>
       </button>
     </div>
-  </div>
+  </header>
 
-  <!-- Main Chat Screen -->
-  <div id="main-screen" class="screen hidden">
-    <!-- Header -->
-    <div class="header">
-      <div class="header-title">
-        <svg class="header-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="12" r="11" fill="url(#hgrad)"/>
-          <text x="12" y="16" text-anchor="middle" font-size="11" font-family="monospace" fill="white" font-weight="bold">J</text>
-          <defs>
-            <linearGradient id="hgrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#4285F4"/>
-              <stop offset="100%" stop-color="#0F9D58"/>
-            </linearGradient>
-          </defs>
-        </svg>
-        <span>Jules AI</span>
-      </div>
-      <div class="header-actions">
-        <button class="icon-btn" id="btn-refresh" title="Refresh Tasks">
-          <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M13.451 5.609l-.808-.588C11.584 3.601 9.895 2.75 8 2.75c-2.757 0-5.116 1.814-5.855 4.385l-.014.054a5.15 5.15 0 00-.132 1.138c0 2.85 2.297 5.162 5.125 5.162 1.481 0 2.806-.594 3.776-1.553l.813.836A6.389 6.389 0 018.124 14.5C4.68 14.5 1.876 11.71 1.876 8.278c0-.49.058-.964.167-1.418C2.81 3.88 5.238 1.5 8.25 1.5c2.125 0 3.998 1.047 5.16 2.649l.806-.588v3.152l-0.765-1.104z"/></svg>
-        </button>
-        <button class="icon-btn" id="btn-clear" title="Clear Chat">
-          <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M10 3h3v1h-1v9l-1 1H4l-1-1V4H2V3h3V2a1 1 0 011-1h3a1 1 0 011 1v1zm-6 9h8V4H4v8zm4-8a.5.5 0 01.5.5v6a.5.5 0 01-1 0v-6A.5.5 0 018 4z"/></svg>
-        </button>
-        <button class="icon-btn" id="btn-settings" title="Configure API Key">
-          <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.8-1.3 2 .8.8 2-1.3.8.3.4 2.3h1.2l.5-2.4.8-.3 2 1.3.8-.8-1.3-2 .3-.8 2.3-.4V7.4l-2.4-.5-.3-.8 1.3-2-.8-.8-2 1.3-.7-.2zM8 10a2 2 0 110-4 2 2 0 010 4z"/></svg>
-        </button>
-      </div>
+  <!-- Repo Zone -->
+  <div class="repo-zone">
+    <span class="repo-label">Repository</span>
+    <div class="repo-search-wrap">
+      <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M11.742 10.344a6.5 6.5 0 10-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 001.415-1.414l-3.85-3.85a1.007 1.007 0 00-.115-.1zM12 6.5a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z"/></svg>
+      <input type="text" id="repo-search" class="repo-search" placeholder="Filter repositories…" autocomplete="off">
     </div>
-
-    <!-- Repository Selector -->
-    <div class="repo-selector-container">
-        <label for="repo-search" class="repo-label">Target Repository:</label>
-        <div class="repo-search-wrapper">
-            <input type="text" id="repo-search" class="repo-search-input" placeholder="Search repositories...">
-            <svg class="search-icon" viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M11.742 10.344a6.5 6.5 0 10-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 001.415-1.414l-3.85-3.85a1.007 1.007 0 00-.115-.1zM12 6.5a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z"/></svg>
-        </div>
-        <select id="repo-select" class="repo-select">
-            <option value="">Loading repositories...</option>
-        </select>
-    </div>
-
-    <!-- Tasks Area -->
-    <div id="tasks-area" class="tasks-area">
-      <!-- Welcome message -->
-      <div id="welcome-msg" class="welcome-message">
-        <div class="welcome-icon">🤖</div>
-        <p>Hi! I'm Jules, your AI coding agent.</p>
-        <p class="welcome-subtitle">Describe a coding task and I'll handle it for you — writing code, fixing bugs, creating PRs, and more.</p>
-      </div>
-    </div>
-
-    <!-- Code Context Banner -->
-    <div id="code-context-banner" class="code-context-banner hidden">
-      <span id="code-context-label">📎 Code selected</span>
-      <button id="btn-clear-context" class="clear-context-btn">✕</button>
-    </div>
-
-    <!-- Input Area -->
-    <div class="input-area">
-      <div class="input-wrapper">
-        <textarea
-          id="message-input"
-          class="message-input"
-          placeholder="Describe a coding task for Jules... (e.g., 'Fix the null pointer exception in UserService.java')"
-          rows="3"
-        ></textarea>
-        <button id="btn-send" class="btn-send" title="Send (Ctrl+Enter)">
-          <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16"><path d="M1.5 1.5l13 6.5-13 6.5V9.5l9-2.5-9-2.5V1.5z"/></svg>
-        </button>
-      </div>
-      <div class="input-hint">Press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to send</div>
+    <div class="repo-select-wrap">
+      <select id="repo-select" class="repo-select">
+        <option value="">Loading repositories…</option>
+      </select>
+      <svg class="repo-caret" viewBox="0 0 16 16" fill="currentColor" width="10" height="10"><path d="M4 6l4 4 4-4"/></svg>
     </div>
   </div>
 
-  <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
+  <!-- Filter Tabs -->
+  <div class="filter-tabs" role="tablist">
+    <button class="tab-btn active" role="tab" data-tab="all">All <span class="tab-count">0</span></button>
+    <button class="tab-btn" role="tab" data-tab="active">Active <span class="tab-count">0</span></button>
+    <button class="tab-btn" role="tab" data-tab="done">Done <span class="tab-count">0</span></button>
+  </div>
+
+  <!-- Tasks Area -->
+  <div id="tasks-area" class="tasks-area">
+    <div id="skeleton-loader" class="skeleton-wrap hidden">
+      <div class="task-skeleton">
+        <div class="skel w40 h8"></div>
+        <div class="skel w80"></div>
+        <div class="skel w60"></div>
+      </div>
+      <div class="task-skeleton">
+        <div class="skel w40 h8"></div>
+        <div class="skel w80"></div>
+      </div>
+      <div class="task-skeleton">
+        <div class="skel w40 h8"></div>
+        <div class="skel w80"></div>
+        <div class="skel w60"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Code Context Banner -->
+  <div id="code-context-banner" class="code-banner hidden">
+    <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13" style="flex-shrink:0;opacity:0.7"><path d="M4.5 9a3.5 3.5 0 100 7h7a3.5 3.5 0 100-7h-7zm7 6h-7a2.5 2.5 0 010-5h7a2.5 2.5 0 010 5z"/><path d="M4.5 3a3.5 3.5 0 100 7h7a3.5 3.5 0 100-7h-7zm7 6h-7a2.5 2.5 0 010-5h7a2.5 2.5 0 010 5z"/></svg>
+    <span id="code-banner-text" class="code-banner-text">Code attached</span>
+    <button id="btn-clear-context" class="code-banner-clear" title="Remove code context">✕</button>
+  </div>
+
+  <!-- Input Zone -->
+  <div class="input-zone">
+    <div class="input-wrap">
+      <textarea
+        id="message-input"
+        class="message-textarea"
+        placeholder="Describe a task for Jules… (e.g. 'Fix the null pointer exception in UserService')"
+        rows="3"
+      ></textarea>
+      <button id="btn-send" class="btn-send" title="Send (Ctrl+Enter)" disabled>
+        <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M1.5 1.5l13 6.5-13 6.5V9.5l9-2.5-9-2.5V1.5z"/></svg>
+      </button>
+    </div>
+    <div class="input-footer">
+      <span id="char-count" class="char-count">0 / 2000</span>
+      <span class="input-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> to send</span>
+    </div>
+  </div>
+
+</div>
+
+<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
   }
@@ -419,9 +443,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 
 function getNonce(): string {
   let text = '';
-  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  for (let i = 0; i < 32; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  for (let i = 0; i < 32; i++) text += chars.charAt(Math.floor(Math.random() * chars.length));
   return text;
 }

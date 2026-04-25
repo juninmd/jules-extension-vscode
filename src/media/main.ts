@@ -1,440 +1,445 @@
-// Jules VS Code Extension - Webview Script
+// Jules AI Extension — Premium Webview Script
 
-// Declare vscode API
 declare function acquireVsCodeApi(): {
-  postMessage(message: any): void;
-  getState(): any;
-  setState(state: any): void;
+  postMessage(message: unknown): void;
+  getState(): unknown;
+  setState(state: unknown): void;
 };
 
 (function () {
   'use strict';
 
-  // VS Code API
   const vscode = acquireVsCodeApi();
+  const MAX_CHARS = 2000;
 
-  // State
-interface Task {
-  name: string;
-  prompt: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-  createdAt: string;
-  updatedAt: string;
-  result?: string;
-  error?: string;
-  pullRequestUrl?: string;
-}
+  interface Task {
+    name: string;
+    prompt: string;
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+    createdAt: string;
+    updatedAt: string;
+    result?: string;
+    error?: string;
+    pullRequestUrl?: string;
+  }
 
-interface State {
-  hasApiKey: boolean;
-  tasks: Task[];
-  sources: any[];
-  codeContext: string | null;
-  codeLanguage: string;
-  isCreatingTask: boolean;
-}
+  type TabType = 'all' | 'active' | 'done';
 
-  const state: State = {
+  const state = {
     hasApiKey: false,
-    tasks: [],
-    sources: [],
-    codeContext: null,
+    allTasks: [] as Task[],
+    sources: [] as Array<{ name: string; displayName: string }>,
+    codeContext: null as string | null,
     codeLanguage: '',
     isCreatingTask: false,
+    currentTab: 'all' as TabType,
+    isLoading: false,
   };
 
-  // Elements - Screens
-  const setupScreen = document.getElementById('setup-screen') as HTMLElement;
-  const mainScreen = document.getElementById('main-screen') as HTMLElement;
+  // ── DOM refs ─────────────────────────────────────────────
+  const setupScreen  = document.getElementById('setup-screen')!;
+  const mainScreen   = document.getElementById('main-screen')!;
+  const btnConfigKey = document.getElementById('btn-configure-key')!;
+  const linkPortal   = document.getElementById('link-portal')!;
+  const btnRefresh   = document.getElementById('btn-refresh')!;
+  const btnSettings  = document.getElementById('btn-settings')!;
+  const repoSearch   = document.getElementById('repo-search') as HTMLInputElement;
+  const repoSelect   = document.getElementById('repo-select') as HTMLSelectElement;
+  const tabBtns      = document.querySelectorAll<HTMLButtonElement>('.tab-btn');
+  const tasksArea    = document.getElementById('tasks-area')!;
+  const skeletonLoader = document.getElementById('skeleton-loader')!;
+  const codeBanner   = document.getElementById('code-context-banner')!;
+  const codeBannerText = document.getElementById('code-banner-text')!;
+  const btnClearCtx  = document.getElementById('btn-clear-context')!;
+  const textarea     = document.getElementById('message-input') as HTMLTextAreaElement;
+  const btnSend      = document.getElementById('btn-send') as HTMLButtonElement;
+  const charCountEl  = document.getElementById('char-count')!;
 
-  // Elements - Setup
-  const btnConfigureKey = document.getElementById('btn-configure-key');
-  const linkPortal = document.getElementById('link-portal');
-
-  // Elements - Main
-  const tasksArea = document.getElementById('tasks-area') as HTMLElement;
-  const welcomeMsg = document.getElementById('welcome-msg');
-  const messageInput = document.getElementById('message-input') as HTMLTextAreaElement;
-  const btnSend = document.getElementById('btn-send') as HTMLButtonElement;
-  const btnClear = document.getElementById('btn-clear');
-  const btnRefresh = document.getElementById('btn-refresh');
-  const btnSettings = document.getElementById('btn-settings');
-  const codeContextBanner = document.getElementById('code-context-banner');
-  const codeContextLabel = document.getElementById('code-context-label');
-  const btnClearContext = document.getElementById('btn-clear-context');
-  const repoSelect = document.getElementById('repo-select') as HTMLSelectElement;
-  const repoSearch = document.getElementById('repo-search') as HTMLInputElement;
-
-  // ---- Init ----
+  // ── Init ─────────────────────────────────────────────────
   function init() {
     bindEvents();
-    // Show loading state until we know API key status
-    setupScreen.classList.add('hidden');
-    mainScreen.classList.add('hidden');
-
-    // Notify extension that webview is ready to receive messages
     vscode.postMessage({ type: 'ready' });
   }
 
-  // ---- Event Bindings ----
+  // ── Events ───────────────────────────────────────────────
   function bindEvents() {
-    // Setup screen
-    btnConfigureKey?.addEventListener('click', () => {
-      vscode.postMessage({ type: 'configureApiKey' });
-    });
+    btnConfigKey.addEventListener('click', () => vscode.postMessage({ type: 'configureApiKey' }));
 
-    linkPortal?.addEventListener('click', (e: Event) => {
+    linkPortal.addEventListener('click', (e: Event) => {
       e.preventDefault();
-      vscode.postMessage({ type: 'openTaskUrl', url: 'https://jules.google' });
+      vscode.postMessage({ type: 'openTaskUrl', url: 'https://jules.google.com' });
     });
 
-    // Send button
-    btnSend?.addEventListener('click', sendMessage);
+    btnRefresh.addEventListener('click', () => {
+      btnRefresh.classList.add('spinning');
+      refreshTasks();
+      setTimeout(() => btnRefresh.classList.remove('spinning'), 1600);
+    });
 
-    // Keyboard shortcut: Ctrl+Enter to send
-    messageInput?.addEventListener('keydown', (e: KeyboardEvent) => {
+    btnSettings.addEventListener('click', () => vscode.postMessage({ type: 'configureApiKey' }));
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => setTab(btn.dataset.tab as TabType));
+    });
+
+    repoSearch.addEventListener('input', () => filterSources());
+    repoSelect.addEventListener('change', () => refreshTasks());
+
+    btnClearCtx.addEventListener('click', () => clearCodeContext());
+
+    textarea.addEventListener('input', () => {
+      autoResize(textarea);
+      updateSendBtn();
+      updateCharCount();
+    });
+
+    textarea.addEventListener('keydown', (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         sendMessage();
       }
     });
 
-    // Auto-resize textarea
-    messageInput?.addEventListener('input', () => {
-      autoResize(messageInput);
-      updateSendButton();
-    });
-
-    // Toolbar buttons
-    btnClear?.addEventListener('click', () => {
-      clearTasks();
-    });
-
-    btnRefresh?.addEventListener('click', () => {
-      refreshTasks();
-    });
-
-    btnSettings?.addEventListener('click', () => {
-      vscode.postMessage({ type: 'configureApiKey' });
-    });
-
-    // Code context
-    btnClearContext?.addEventListener('click', () => {
-      clearCodeContext();
-    });
-
-    // Repo search
-    repoSearch?.addEventListener('input', () => {
-        filterSources();
-    });
-
-    // Repo change
-    repoSelect?.addEventListener('change', () => {
-        refreshTasks();
-    });
+    btnSend.addEventListener('click', sendMessage);
   }
 
-  // ---- Helpers ----
-  function refreshTasks() {
-      const repository = repoSelect?.value;
-      vscode.postMessage({ 
-          type: 'refreshTasks', 
-          repository: repository || undefined 
-      });
+  // ── Tabs ─────────────────────────────────────────────────
+  function setTab(tab: TabType) {
+    state.currentTab = tab;
+    tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    renderTasks();
   }
 
-  // ---- Send Message ----
+  function getFiltered(): Task[] {
+    switch (state.currentTab) {
+      case 'active':
+        return state.allTasks.filter(t => t.status === 'pending' || t.status === 'running');
+      case 'done':
+        return state.allTasks.filter(t => t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled');
+      default:
+        return state.allTasks;
+    }
+  }
+
+  function updateTabCounts() {
+    const active = state.allTasks.filter(t => t.status === 'pending' || t.status === 'running').length;
+    const done   = state.allTasks.filter(t => t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled').length;
+
+    (document.querySelector('[data-tab="all"] .tab-count') as HTMLElement).textContent  = String(state.allTasks.length);
+    (document.querySelector('[data-tab="active"] .tab-count') as HTMLElement).textContent = String(active);
+    (document.querySelector('[data-tab="done"] .tab-count') as HTMLElement).textContent   = String(done);
+  }
+
+  // ── Send ─────────────────────────────────────────────────
   function sendMessage() {
-    const text = messageInput?.value.trim();
-    const repository = repoSelect?.value;
-    
+    const text = textarea.value.trim();
+    const repo = repoSelect.value;
+
     if (!text || state.isCreatingTask) return;
-    if (!repository) {
-        addErrorCard('Please select a repository first.');
-        return;
-    }
+    if (!repo) { showError('Please select a repository first.'); return; }
+    if (text.length > MAX_CHARS) { showError(`Message too long (max ${MAX_CHARS} chars).`); return; }
 
-    vscode.postMessage({
-      type: 'sendMessage',
-      text,
-      repository,
-      codeContext: state.codeContext || undefined,
-    });
+    vscode.postMessage({ type: 'sendMessage', text, repository: repo, codeContext: state.codeContext ?? undefined });
 
-    // Add a pending task card immediately in the UI
-    addPendingTaskCard(text);
-
-    if (messageInput) {
-      messageInput.value = '';
-      messageInput.style.height = '';
-    }
-    updateSendButton();
-    clearCodeContext();
-  }
-
-  // ---- Task Cards ----
-  function addPendingTaskCard(description: string) {
-    hideWelcome();
-    state.isCreatingTask = true;
-    updateSendButton();
-
-    const card = createTaskCard({
-      name: 'creating-' + Date.now(),
-      prompt: description,
+    // Optimistic pending card
+    const tempId = 'creating-' + Date.now();
+    const tempTask: Task = {
+      name: tempId,
+      prompt: text,
       status: 'pending',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    }, true);
+    };
 
-    tasksArea.appendChild(card);
-    tasksArea.scrollTop = tasksArea.scrollHeight;
+    state.allTasks.unshift(tempTask);
+    state.isCreatingTask = true;
+
+    textarea.value = '';
+    textarea.style.height = '';
+    updateSendBtn();
+    updateCharCount();
+    clearCodeContext();
+
+    if (state.currentTab === 'done') setTab('all');
+    else renderTasks();
+
+    updateTabCounts();
   }
 
-  function createTaskCard(task: any, isCreating = false) {
+  function refreshTasks() {
+    vscode.postMessage({ type: 'refreshTasks', repository: repoSelect.value || undefined });
+  }
+
+  // ── Render ───────────────────────────────────────────────
+  function renderTasks() {
+    if (!state.isLoading) skeletonLoader.classList.add('hidden');
+
+    tasksArea.querySelectorAll('.task-card, .empty-state, .error-toast').forEach(el => el.remove());
+
+    const filtered = getFiltered();
+    if (filtered.length === 0) {
+      tasksArea.appendChild(buildEmptyState());
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    filtered.forEach(t => frag.appendChild(buildCard(t)));
+    tasksArea.appendChild(frag);
+  }
+
+  function buildEmptyState(): HTMLElement {
+    const d = document.createElement('div');
+    d.className = 'empty-state';
+
+    const cfg: Record<TabType, { icon: string; title: string; desc: string }> = {
+      all:    { icon: '🤖', title: 'No tasks yet',       desc: 'Describe a coding task and Jules will write code, fix bugs, and open pull requests.' },
+      active: { icon: '✨', title: 'No active tasks',    desc: 'All tasks have finished. Send a new task to get Jules working.' },
+      done:   { icon: '📋', title: 'No completed tasks', desc: 'Completed and failed tasks will appear here.' },
+    };
+
+    const c = cfg[state.currentTab];
+    d.innerHTML = `
+      <div class="empty-icon">${c.icon}</div>
+      <div class="empty-title">${c.title}</div>
+      <div class="empty-desc">${c.desc}</div>
+    `;
+    return d;
+  }
+
+  const STATUS_LABELS: Record<string, string> = {
+    pending: 'Pending', running: 'Running', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled',
+  };
+
+  function buildCard(task: Task): HTMLElement {
     const card = document.createElement('div');
-    card.className = 'task-card';
+    card.className = `task-card status-${task.status} entering`;
     card.dataset.taskId = task.name;
 
-    const statusClass = `status-${task.status}`;
-    const statusLabel = getStatusLabel(task.status);
-    const statusDot = task.status === 'running' ? '<span class="spinner"></span>' : getStatusEmoji(task.status);
+    const isActive    = task.status === 'pending' || task.status === 'running';
+    const isCreating  = task.name.startsWith('creating-');
+    const isDone      = !isActive;
+    const hasDetails  = !!(task.result || task.error || task.pullRequestUrl || isDone);
+    const timeStr     = task.createdAt ? formatTime(task.createdAt) : '';
+    const statusLabel = STATUS_LABELS[task.status] ?? task.status;
 
-    const timeStr = task.createdAt ? formatTime(task.createdAt) : '';
+    requestAnimationFrame(() => requestAnimationFrame(() => card.classList.remove('entering')));
 
     card.innerHTML = `
-      <div class="task-card-header">
-        <div class="task-title">${escapeHtml(task.prompt || 'Task')}</div>
-        <div class="task-card-actions">
-          ${(task.status === 'pending' || task.status === 'running') && !isCreating
-            ? `<button class="icon-btn btn-cancel-task" title="Cancel Task" data-task-id="${escapeHtml(task.name)}">
-                <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.354 4.646l-6 6-.708-.708 6-6 .708.708zm-6 0l.708-.708 6 6-.708.708-6-6z"/></svg>
-               </button>`
-            : ''
-          }
+      <div class="task-main">
+        <div class="task-top">
+          <span class="task-badge">
+            <span class="status-dot"></span>
+            ${task.status === 'running' ? '<span class="spinner"></span>' : ''}
+            ${escHtml(statusLabel)}
+          </span>
+          <span class="task-time">${escHtml(timeStr)}</span>
+          <div class="task-top-actions">
+            ${isActive && !isCreating
+              ? `<button class="icon-btn btn-cancel" title="Cancel" data-id="${escHtml(task.name)}">
+                  <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.5 9.793L10.793 11.5 8 8.707 5.207 11.5 4.5 10.793 7.293 8 4.5 5.207l.707-.707L8 7.293l2.793-2.793.707.707L8.707 8z"/></svg>
+                </button>`
+              : ''}
+            ${hasDetails
+              ? `<svg class="expand-icon" viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M4 6l4 4 4-4"/></svg>`
+              : ''}
+          </div>
         </div>
+        <div class="task-prompt">${escHtml(task.prompt || 'Task')}</div>
+        ${task.status === 'running'
+          ? `<div class="task-progress">
+              <div class="progress-track"><div class="progress-fill"></div></div>
+              <span class="progress-lbl">Working…</span>
+            </div>`
+          : ''}
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span class="task-status ${statusClass}">${statusDot} ${statusLabel}</span>
-        ${timeStr ? `<span class="task-time">${timeStr}</span>` : ''}
-        ${isCreating ? '<span class="spinner"></span>' : ''}
-      </div>
-      ${task.result ? `<div class="task-result">${escapeHtml(task.result)}</div>` : ''}
-      ${task.error ? `<div class="task-error">⚠️ ${escapeHtml(task.error)}</div>` : ''}
-      ${task.pullRequestUrl ? `
-        <button class="task-pr-link" data-url="${escapeHtml(task.pullRequestUrl)}">
-          <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M7.177 3.073L9.573.677A.25.25 0 0110 .854v4.792a.25.25 0 01-.427.177L7.177 3.427a.25.25 0 010-.354zm-2.354 7.854l-2.396-2.396a.25.25 0 010-.354l2.396-2.396A.25.25 0 015 6v4.792a.25.25 0 01-.427.177z"/><path fill-rule="evenodd" d="M3.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM11 2.5h-1V4h1a1 1 0 011 1v5.628a2.251 2.251 0 101.5 0V5A2.5 2.5 0 0011 2.5zm1 10.25a.75.75 0 111.5 0 .75.75 0 01-1.5 0z"/></svg>
-          View Pull Request
-        </button>
-      ` : ''}
+      ${hasDetails ? `
+      <div class="task-details">
+        ${task.result ? `<div class="task-result">${escHtml(task.result)}</div>` : ''}
+        ${task.error  ? `<div class="task-error">⚠ ${escHtml(task.error)}</div>` : ''}
+        <div class="task-action-row">
+          ${task.pullRequestUrl
+            ? `<button class="btn-pr" data-url="${escHtml(task.pullRequestUrl)}">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path fill-rule="evenodd" d="M7.177 3.073L9.573.677A.25.25 0 0110 .854v4.792a.25.25 0 01-.427.177L7.177 3.427a.25.25 0 010-.354zM3.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM11 2.5h-1V4h1a1 1 0 011 1v5.628a2.251 2.251 0 101.5 0V5A2.5 2.5 0 0011 2.5zm1 10.25a.75.75 0 111.5 0 .75.75 0 01-1.5 0z"/></svg>
+                View Pull Request
+              </button>`
+            : ''}
+          ${isDone && !isCreating
+            ? `<button class="btn-del" data-id="${escHtml(task.name)}">
+                <svg viewBox="0 0 16 16" fill="currentColor" width="11" height="11"><path d="M10 3h3v1h-1v9l-1 1H4l-1-1V4H2V3h3V2a1 1 0 011-1h3a1 1 0 011 1v1zm-6 9h8V4H4v8zm4-8a.5.5 0 01.5.5v6a.5.5 0 01-1 0v-6A.5.5 0 018 4z"/></svg>
+                Remove
+              </button>`
+            : ''}
+        </div>
+      </div>` : ''}
     `;
 
-    // Bind cancel button
-    const cancelBtn = card.querySelector('.btn-cancel-task');
-    cancelBtn?.addEventListener('click', () => {
+    // Click-to-expand
+    const taskMain = card.querySelector('.task-main')!;
+    taskMain.addEventListener('click', (e: Event) => {
+      if ((e.target as HTMLElement).closest('.btn-cancel')) return;
+      if (hasDetails) card.classList.toggle('expanded');
+    });
+
+    // Cancel
+    card.querySelector('.btn-cancel')?.addEventListener('click', (e: Event) => {
+      e.stopPropagation();
       vscode.postMessage({ type: 'cancelTask', taskId: task.name });
     });
 
-    // Bind PR link
-    const prLink = card.querySelector('.task-pr-link');
-    prLink?.addEventListener('click', () => {
-      vscode.postMessage({ type: 'openTaskUrl', url: task.pullRequestUrl });
+    // PR link
+    card.querySelector('.btn-pr')?.addEventListener('click', () => {
+      vscode.postMessage({ type: 'openTaskUrl', url: task.pullRequestUrl! });
+    });
+
+    // Delete
+    card.querySelector('.btn-del')?.addEventListener('click', () => {
+      vscode.postMessage({ type: 'deleteTask', taskId: task.name });
+      state.allTasks = state.allTasks.filter(t => t.name !== task.name);
+      updateTabCounts();
+      renderTasks();
     });
 
     return card;
   }
 
-  function updateTaskCard(task: any) {
-    const existing = tasksArea.querySelector(`[data-task-id="${CSS.escape(task.name)}"]`);
-
-    if (existing) {
-      const newCard = createTaskCard(task);
-      existing.replaceWith(newCard);
+  // ── Task state helpers ────────────────────────────────────
+  function upsertTask(task: Task) {
+    const idx = state.allTasks.findIndex(t => t.name === task.name);
+    if (idx >= 0) {
+      state.allTasks[idx] = task;
     } else {
-      // Remove any "creating" placeholder
-      const creating = tasksArea.querySelector('[data-task-id^="creating-"]');
-      if (creating) {
-        creating.remove();
-      }
-      const card = createTaskCard(task);
-      tasksArea.appendChild(card);
-      hideWelcome();
+      const cIdx = state.allTasks.findIndex(t => t.name.startsWith('creating-'));
+      if (cIdx >= 0) state.allTasks[cIdx] = task;
+      else state.allTasks.unshift(task);
     }
-
     state.isCreatingTask = false;
-    updateSendButton();
-    tasksArea.scrollTop = tasksArea.scrollHeight;
+    updateSendBtn();
   }
 
-  function addTasksList(tasks: any[]) {
-    clearTasks(false);
-    if (tasks.length === 0) {
-      showWelcome();
-      return;
-    }
-    tasks.forEach(task => {
-      const card = createTaskCard(task);
-      tasksArea.appendChild(card);
-    });
-    hideWelcome();
-    tasksArea.scrollTop = tasksArea.scrollHeight;
+  function setTasksList(tasks: Task[]) {
+    state.allTasks = tasks;
+    state.isCreatingTask = false;
+    state.isLoading = false;
+    skeletonLoader.classList.add('hidden');
+    updateSendBtn();
+    updateTabCounts();
+    renderTasks();
   }
 
-  function updateSourcesList(sources: any[]) {
-      state.sources = sources;
-      filterSources();
+  // ── Sources ──────────────────────────────────────────────
+  function setSources(sources: Array<{ name: string; displayName: string }>) {
+    state.sources = Array.isArray(sources) ? sources : [];
+    filterSources();
   }
 
   function filterSources() {
-      if (!repoSelect) return;
-      
-      const query = repoSearch?.value.toLowerCase() || '';
-      const filtered = state.sources.filter(s => 
-          s.name.toLowerCase().includes(query) || 
-          (s.displayName && s.displayName.toLowerCase().includes(query))
-      );
+    const q = repoSearch.value.toLowerCase();
+    const filtered = state.sources.filter(s =>
+      !q ||
+      s.name?.toLowerCase().includes(q) ||
+      s.displayName?.toLowerCase().includes(q)
+    );
 
-      repoSelect.innerHTML = '';
-      
-      if (filtered.length === 0) {
-          const option = document.createElement('option');
-          option.value = '';
-          option.textContent = state.sources.length === 0 ? 'No repositories found' : 'No matches found';
-          repoSelect.appendChild(option);
-          return;
-      }
+    repoSelect.innerHTML = '';
 
-      // Add a default select option
-      const defaultOption = document.createElement('option');
-      defaultOption.value = '';
-      defaultOption.textContent = 'Select a repository...';
-      repoSelect.appendChild(defaultOption);
+    if (filtered.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = state.sources.length === 0 ? 'No repositories found' : 'No matches';
+      repoSelect.appendChild(opt);
+      return;
+    }
 
-      filtered.forEach(source => {
-          const option = document.createElement('option');
-          option.value = source.name;
-          option.textContent = source.displayName || source.name.split('/').pop();
-          repoSelect.appendChild(option);
-      });
+    const def = document.createElement('option');
+    def.value = '';
+    def.textContent = 'Select a repository…';
+    repoSelect.appendChild(def);
 
-      // If only one match, auto-select it if user is searching
-      if (filtered.length === 1 && query) {
-          repoSelect.selectedIndex = 1;
-          refreshTasks();
-      }
-  }
+    filtered.forEach(src => {
+      const opt = document.createElement('option');
+      opt.value = src.name;
+      opt.textContent = src.displayName || src.name?.split('/').pop() || 'Unknown';
+      repoSelect.appendChild(opt);
+    });
 
-  function addErrorCard(message: string) {
-    const card = document.createElement('div');
-    card.className = 'error-toast';
-    card.innerHTML = `<span class="error-icon">⚠️</span><span>${escapeHtml(message)}</span>`;
-    tasksArea.appendChild(card);
-    tasksArea.scrollTop = tasksArea.scrollHeight;
-    state.isCreatingTask = false;
-    updateSendButton();
-    // Auto-remove after 10s
-    setTimeout(() => card.remove(), 10000);
-  }
-
-  // ---- UI Helpers ----
-  function showScreen(screen: HTMLElement) {
-    setupScreen.classList.add('hidden');
-    mainScreen.classList.add('hidden');
-    screen.classList.remove('hidden');
-  }
-
-  function hideWelcome() {
-    welcomeMsg?.classList.add('hidden');
-  }
-
-  function showWelcome() {
-    welcomeMsg?.classList.remove('hidden');
-  }
-
-  function clearTasks(showWelcomeAfter = true) {
-    // Remove all task cards and error cards, keep welcome msg
-    const cards = tasksArea.querySelectorAll('.task-card, .error-toast');
-    cards.forEach(c => c.remove());
-    state.tasks = [];
-    state.isCreatingTask = false;
-    updateSendButton();
-    if (showWelcomeAfter) {
-      showWelcome();
+    if (filtered.length === 1 && q) {
+      repoSelect.selectedIndex = 1;
+      refreshTasks();
     }
   }
 
-  function updateSendButton() {
-    if (!btnSend || !messageInput) return;
-    const hasText = messageInput.value.trim().length > 0;
-    btnSend.disabled = !hasText || state.isCreatingTask;
-  }
-
-  function autoResize(textarea: HTMLTextAreaElement) {
-    textarea.style.height = 'auto';
-    textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
-  }
-
+  // ── Code context ─────────────────────────────────────────
   function setCodeContext(code: string, language: string) {
     state.codeContext = code;
     state.codeLanguage = language;
-    const lineCount = code.split('\n').length;
-    const langLabel = language ? ` (${language})` : '';
-    if (codeContextLabel) {
-      codeContextLabel.textContent = `📎 ${lineCount} line${lineCount !== 1 ? 's' : ''} of code attached${langLabel}`;
-    }
-    codeContextBanner?.classList.remove('hidden');
+    const lines = code.split('\n').length;
+    const lang  = language ? ` · ${language}` : '';
+    codeBannerText.textContent = `${lines} line${lines !== 1 ? 's' : ''} attached${lang}`;
+    codeBanner.classList.remove('hidden');
+    textarea.focus();
   }
 
   function clearCodeContext() {
-    state.codeContext = null;
+    state.codeContext  = null;
     state.codeLanguage = '';
-    codeContextBanner?.classList.add('hidden');
-    if (codeContextLabel) {
-      codeContextLabel.textContent = '📎 Code selected';
-    }
+    codeBanner.classList.add('hidden');
   }
 
-  // ---- Formatting ----
-  function getStatusLabel(status: string) {
-    const labels: { [key: string]: string } = {
-      pending: 'Pending',
-      running: 'Running',
-      completed: 'Completed',
-      failed: 'Failed',
-      cancelled: 'Cancelled',
-    };
-    return labels[status] || status;
+  // ── UI helpers ───────────────────────────────────────────
+  function showScreen(el: HTMLElement) {
+    setupScreen.classList.add('hidden');
+    mainScreen.classList.add('hidden');
+    el.classList.remove('hidden');
   }
 
-  function getStatusEmoji(status: string) {
-    const emojis: { [key: string]: string } = {
-      pending: '⏳',
-      running: '',
-      completed: '✅',
-      failed: '❌',
-      cancelled: '🚫',
-    };
-    return emojis[status] || '';
+  function showError(msg: string) {
+    const d = document.createElement('div');
+    d.className = 'error-toast';
+    d.innerHTML = `<span>⚠</span><span>${escHtml(msg)}</span>`;
+    tasksArea.appendChild(d);
+    tasksArea.scrollTop = tasksArea.scrollHeight;
+    state.isCreatingTask = false;
+    updateSendBtn();
+    setTimeout(() => d.remove(), 8000);
   }
 
-  function formatTime(isoString: string) {
+  function updateSendBtn() {
+    const hasText = textarea.value.trim().length > 0;
+    const over    = textarea.value.length > MAX_CHARS;
+    btnSend.disabled = !hasText || state.isCreatingTask || over;
+  }
+
+  function updateCharCount() {
+    const len = textarea.value.length;
+    charCountEl.textContent = `${len} / ${MAX_CHARS}`;
+    charCountEl.className = 'char-count';
+    if (len > MAX_CHARS * 0.9) charCountEl.classList.add('warn');
+    if (len > MAX_CHARS)       charCountEl.classList.add('over');
+  }
+
+  function autoResize(el: HTMLTextAreaElement) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 138) + 'px';
+  }
+
+  // ── Formatting ───────────────────────────────────────────
+  function formatTime(iso: string): string {
     try {
-      const date = new Date(isoString);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      if (diffMins < 1) return 'just now';
-      if (diffMins < 60) return `${diffMins}m ago`;
-      const diffHours = Math.floor(diffMins / 60);
-      if (diffHours < 24) return `${diffHours}h ago`;
-      return date.toLocaleDateString();
-    } catch {
-      return '';
-    }
+      const diff  = Date.now() - new Date(iso).getTime();
+      const mins  = Math.floor(diff / 60000);
+      if (mins < 1)  return 'just now';
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24)  return `${hrs}h ago`;
+      const days = Math.floor(hrs / 24);
+      if (days < 7)  return `${days}d ago`;
+      return new Date(iso).toLocaleDateString();
+    } catch { return ''; }
   }
 
-  function escapeHtml(str: string | null | undefined) {
-    if (!str) return '';
-    return String(str)
+  function escHtml(s: string | null | undefined): string {
+    if (!s) return '';
+    return String(s)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -442,57 +447,64 @@ interface State {
       .replace(/'/g, '&#039;');
   }
 
-  // ---- Message Handler ----
+  // ── Message handler ──────────────────────────────────────
   window.addEventListener('message', (event: MessageEvent) => {
-    const message = event.data;
+    const msg = event.data;
 
-    switch (message.type) {
+    switch (msg.type) {
       case 'apiKeyStatus':
-        state.hasApiKey = message.hasKey;
-        if (message.hasKey) {
-          showScreen(mainScreen);
-        } else {
-          showScreen(setupScreen);
+        state.hasApiKey = msg.hasKey;
+        showScreen(msg.hasKey ? mainScreen : setupScreen);
+        if (msg.hasKey && state.allTasks.length === 0) {
+          state.isLoading = true;
+          skeletonLoader.classList.remove('hidden');
         }
         break;
 
       case 'taskCreating':
         state.isCreatingTask = true;
-        updateSendButton();
+        updateSendBtn();
         break;
 
       case 'taskCreated':
-        updateTaskCard(message.task);
-        break;
-
       case 'taskUpdated':
-        updateTaskCard(message.task);
+        upsertTask(msg.task);
+        updateTabCounts();
+        renderTasks();
         break;
 
       case 'tasksList':
-        addTasksList(message.tasks);
+        setTasksList(msg.tasks ?? []);
         break;
 
       case 'sourcesList':
-        updateSourcesList(message.sources);
+        setSources(msg.sources ?? []);
+        break;
+
+      case 'taskDeleted':
+        state.allTasks = state.allTasks.filter((t: Task) => t.name !== msg.taskId);
+        updateTabCounts();
+        renderTasks();
         break;
 
       case 'error':
-        addErrorCard(message.message);
+        showError(msg.message);
         break;
 
       case 'clearChat':
-        clearTasks();
+        state.allTasks = [];
+        state.isCreatingTask = false;
+        updateSendBtn();
+        updateTabCounts();
+        renderTasks();
         break;
 
       case 'selectedCode':
         showScreen(mainScreen);
-        setCodeContext(message.code, message.language);
-        messageInput?.focus();
+        setCodeContext(msg.code, msg.language);
         break;
     }
   });
 
-  // ---- Start ----
   init();
 })();

@@ -48,9 +48,6 @@ export class JulesApiClient {
   private async loadConfig(): Promise<void> {
     const config = vscode.workspace.getConfiguration('jules');
     this.baseUrl = config.get<string>('apiBaseUrl') ?? 'https://jules.googleapis.com/v1alpha';
-    if (this.baseUrl.endsWith('/v1')) {
-       this.baseUrl = this.baseUrl.replace('/v1', '/v1alpha');
-    }
 
     try {
       const key = await this.context.secrets.get('jules.apiKey');
