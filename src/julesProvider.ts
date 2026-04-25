@@ -37,6 +37,8 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 
   private webviewView?: vscode.WebviewView;
   private pollingTimers: Map<string, NodeJS.Timeout> = new Map();
+  private sourcesCache: { data: WebviewSource[], timestamp: number } | null = null;
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -126,8 +128,10 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
         await this.apiClient.waitForInit();
         this.notifyApiKeyChanged(this.apiClient.hasApiKey());
         if (this.apiClient.hasApiKey()) {
-          void this.handleRefreshTasks();
-          void this.handleRefreshSources();
+          void Promise.all([
+            this.handleRefreshTasks(true), // Initial load is fast (first page only)
+            this.handleRefreshSources()
+          ]);
         }
         break;
 
@@ -152,7 +156,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
         break;
 
       case 'refreshTasks':
-        await this.handleRefreshTasks();
+        await this.handleRefreshTasks(false); // Manual refresh loads all
         break;
 
       case 'openTaskUrl':
@@ -242,18 +246,20 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async handleRefreshTasks(): Promise<void> {
+  private async handleRefreshTasks(firstPageOnly: boolean = false): Promise<void> {
     if (!this.apiClient.hasApiKey()) return;
     try {
       let allTasks: WebviewTask[] = [];
       let pageToken: string | undefined;
+      const PAGE_SIZE = 20;
 
       do {
-        const response = await this.apiClient.listTasks(pageToken);
+        const response = await this.apiClient.listTasks(pageToken, PAGE_SIZE);
         if (response.sessions) {
           allTasks = allTasks.concat(response.sessions.map(t => this.normalizeTask(t)));
         }
         pageToken = response.nextPageToken;
+        if (firstPageOnly) break;
       } while (pageToken);
 
       this.webviewView?.webview.postMessage({ type: 'tasksList', tasks: allTasks });
@@ -273,6 +279,13 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
 
   private async handleRefreshSources(): Promise<void> {
     if (!this.apiClient.hasApiKey()) return;
+    
+    // Use cache if valid
+    if (this.sourcesCache && (Date.now() - this.sourcesCache.timestamp < this.CACHE_TTL)) {
+      this.webviewView?.webview.postMessage({ type: 'sourcesList', sources: this.sourcesCache.data });
+      return;
+    }
+
     try {
       let allSources: WebviewSource[] = [];
       let pageToken: string | undefined;
@@ -285,6 +298,7 @@ export class JulesChatViewProvider implements vscode.WebviewViewProvider {
         pageToken = response.nextPageToken;
       } while (pageToken);
 
+      this.sourcesCache = { data: allSources, timestamp: Date.now() };
       this.webviewView?.webview.postMessage({ type: 'sourcesList', sources: allSources });
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
