@@ -166,7 +166,7 @@
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
-    "@commitlint/config-conventional": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.3",
     "@types/node": "^25.6.0",
     "@types/vscode": "^1.116.0",
     "@typescript-eslint/eslint-plugin": "^8.59.2",
