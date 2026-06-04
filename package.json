@@ -173,7 +173,7 @@
     "@typescript-eslint/parser": "^8.58.2",
     "@vitest/ui": "^4.1.5",
     "@vscode/test-electron": "^2.3.0",
-    "@vscode/vsce": "^3.9.1",
+    "@vscode/vsce": "^3.9.2",
     "cpx": "^1.5.0",
     "cpy-cli": "^7.0.0",
     "eslint": "^10.4.0",
