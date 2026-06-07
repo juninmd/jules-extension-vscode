@@ -153,6 +153,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
+    "build": "npm run compile",
     "compile": "tsc -p ./ && cpx \"media/**/*.{png,svg,css}\" out/media/",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
