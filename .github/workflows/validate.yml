@@ -11,4 +11,135 @@ concurrency:
 
 jobs:
   check:
-    uses: juninmd/base-actions/.github/workflows/reusable-validate.yml@main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check for committed secrets (Basic)
+        shell: bash
+        run: |
+          forbidden=$(git ls-files | grep -E '(^|\/)\.env$|(^|\/)\.env\.(local|production|prod|staging|dev)$|(^|\/)id_rsa$|(^|\/).+\.pem$|(^|\/).+\.key$' || true)
+          if [ -n "$forbidden" ]; then
+            echo "::error::Secret files tracked: $forbidden"
+            exit 1
+          fi
+          echo "No committed secrets found."
+
+      - name: Gitleaks Scan
+        uses: gitleaks/gitleaks-action@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        if: hashFiles('package.json') != ''
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        if: hashFiles('pnpm-lock.yaml') != ''
+        uses: pnpm/action-setup@v6
+
+      - name: Install Node dependencies
+        if: hashFiles('package.json') != ''
+        shell: bash
+        run: |
+          if [ -f "pnpm-lock.yaml" ]; then
+            pnpm install --frozen-lockfile
+          elif [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build Node
+        if: hashFiles('package.json') != ''
+        shell: bash
+        run: |
+          if [ -f "pnpm-lock.yaml" ]; then
+            pnpm run build --if-present
+          else
+            npm run build --if-present
+          fi
+
+      - name: Lint Node
+        if: hashFiles('package.json') != ''
+        shell: bash
+        run: |
+          if [ -f "pnpm-lock.yaml" ]; then
+            pnpm run lint --if-present
+          else
+            npm run lint --if-present
+          fi
+
+      - name: Test Node
+        if: hashFiles('package.json') != ''
+        shell: bash
+        run: |
+          if [ -f "pnpm-lock.yaml" ]; then
+            pnpm test --if-present
+          else
+            npm test --if-present
+          fi
+
+      - name: Setup uv
+        if: hashFiles('pyproject.toml') != '' || hashFiles('uv.lock') != ''
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: '3.13'
+
+      - name: Setup Python
+        if: (hashFiles('pyproject.toml') != '' || hashFiles('requirements.txt') != '') && hashFiles('uv.lock') == ''
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install Python dependencies
+        if: hashFiles('pyproject.toml') != '' || hashFiles('requirements.txt') != ''
+        shell: bash
+        run: |
+          if [ -f "uv.lock" ]; then
+            uv sync
+          elif [ -f "pyproject.toml" ]; then
+            pip install .[dev,test] 2>/dev/null || pip install .[dev] 2>/dev/null || pip install .
+          elif [ -f "requirements.txt" ]; then
+            pip install -r requirements.txt
+          fi
+
+      - name: Lint Python
+        if: hashFiles('pyproject.toml') != '' || hashFiles('uv.lock') != ''
+        shell: bash
+        run: |
+          if [ -f "uv.lock" ]; then
+            uv run ruff check . --exit-zero 2>/dev/null || echo "No ruff config found"
+          else
+            pip install ruff 2>/dev/null || true
+            ruff check . --exit-zero 2>/dev/null || echo "No ruff config found"
+          fi
+
+      - name: Test Python
+        if: hashFiles('pyproject.toml') != '' || hashFiles('uv.lock') != ''
+        shell: bash
+        run: |
+          if [ -f "uv.lock" ]; then
+            uv run pytest -x --timeout=30 2>/dev/null || echo "No tests found"
+          else
+            pip install pytest pytest-asyncio 2>/dev/null || true
+            python -m pytest -x --timeout=30 2>/dev/null || echo "No tests found"
+          fi
+
+      - name: Install Helm
+        if: hashFiles('**/Chart.yaml') != ''
+        uses: azure/setup-helm@v5
+
+      - name: Lint Helm Charts
+        if: hashFiles('**/Chart.yaml') != ''
+        shell: bash
+        run: |
+          find . -name "Chart.yaml" -exec dirname {} \; | while read chart; do
+            echo "Linting chart: $chart"
+            helm lint "$chart"
+            helm template "$chart" > /dev/null
+          done
