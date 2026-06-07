@@ -25,6 +25,7 @@
     "url": "https://github.com/juninmd/jules-extension-vscode"
   },
   "license": "MIT",
+  "packageManager": "pnpm@9.15.4",
   "activationEvents": [
     "onStartupFinished",
     "onView:jules.chatView"
