@@ -29,8 +29,8 @@ jobs:
 
       - name: Gitleaks Scan
         uses: gitleaks/gitleaks-action@v3
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         if: hashFiles('package.json') != ''
