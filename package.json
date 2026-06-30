@@ -165,7 +165,7 @@
     "package": "vsce package"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.0.1",
+    "@commitlint/cli": "^21.2.0",
     "@commitlint/config-conventional": "^21.2.0",
     "@types/node": "^25.9.1",
     "@types/vscode": "^1.120.0",
