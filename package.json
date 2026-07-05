@@ -167,7 +167,7 @@
   "devDependencies": {
     "@commitlint/cli": "^21.2.0",
     "@commitlint/config-conventional": "^21.2.0",
-    "@types/node": "^25.9.1",
+    "@types/node": "^26.1.0",
     "@types/vscode": "^1.120.0",
     "@typescript-eslint/eslint-plugin": "^8.62.1",
     "@typescript-eslint/parser": "^8.58.2",
