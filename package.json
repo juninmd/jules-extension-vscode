@@ -176,7 +176,7 @@
     "@vscode/vsce": "^3.9.1",
     "cpx": "^1.5.0",
     "cpy-cli": "^7.0.0",
-    "eslint": "^10.4.0",
+    "eslint": "^10.6.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5"
   }
