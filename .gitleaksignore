@@ -1,0 +1,12 @@
+# Falsos positivos confirmados manualmente: sonar_issues.json era um export do
+# SonarQube (keys/hashes de issues), removido do repositorio depois. A regra
+# generic-api-key casou com campos "key"/"hash" do relatorio, nao com credencial.
+# Formato: commit:arquivo:regra:linha (fingerprint exato).
+eadeff17a7bdbb24b5f6d5add8a63497d374371d:sonar_issues.json:generic-api-key:14
+eadeff17a7bdbb24b5f6d5add8a63497d374371d:sonar_issues.json:generic-api-key:55
+eadeff17a7bdbb24b5f6d5add8a63497d374371d:sonar_issues.json:generic-api-key:96
+eadeff17a7bdbb24b5f6d5add8a63497d374371d:sonar_issues.json:generic-api-key:138
+eadeff17a7bdbb24b5f6d5add8a63497d374371d:sonar_issues.json:generic-api-key:179
+eadeff17a7bdbb24b5f6d5add8a63497d374371d:sonar_issues.json:generic-api-key:221
+eadeff17a7bdbb24b5f6d5add8a63497d374371d:sonar_issues.json:generic-api-key:262
+eadeff17a7bdbb24b5f6d5add8a63497d374371d:sonar_issues.json:generic-api-key:303
