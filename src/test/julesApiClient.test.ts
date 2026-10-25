@@ -1,104 +1,166 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { JulesApiClient } from '../julesApiClient.js';
 
+/**
+ * These are hermetic unit tests: `fetch` is stubbed, so the suite never needs a
+ * JULES_TOKEN, network access or an existing session. The previous version
+ * called the real API, which made the CI gate fail with 401 for every run
+ * without secrets.
+ */
+const BASE = 'https://jules.googleapis.com/v1alpha';
+
+function jsonResponse(status: number, payload: unknown): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: String(status),
+    json: async () => payload,
+  } as unknown as Response;
+}
+
+function makeClient(token = 'test-key'): JulesApiClient {
+  const contextMock = {
+    secrets: { get: async (key: string) => (key === 'jules.apiKey' ? token : undefined) },
+  } as any;
+  return new JulesApiClient(contextMock);
+}
+
 describe('JulesApiClient', () => {
-  let client: JulesApiClient;
-  const token = process.env.JULES_TOKEN;
+  let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    // Mock ExtensionContext
-    const contextMock: any = {
-      secrets: {
-        get: async (key: string) => {
-          if (key === 'jules.apiKey') return token;
-          return undefined;
-        }
-      }
-    };
-    client = new JulesApiClient(contextMock);
-    if (token) {
-      client.setApiKey(token);
-    }
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
   });
 
-  it('should have a token from .env', () => {
-    expect(token).toBeDefined();
-    expect(token?.length).toBeGreaterThan(0);
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it('should list sources successfully', async () => {
+  it('lists sources sending the api key header', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { sources: [{ name: 'sources/1' }] }));
+    const client = makeClient('abc');
+    await client.waitForInit();
+
     const response = await client.listSources();
-    expect(response).toBeDefined();
-    expect(Array.isArray(response.sources)).toBe(true);
-    console.log(`Vitest: Found ${response.sources.length} sources.`);
+
+    expect(response.sources).toHaveLength(1);
+    const [url, options] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(`${BASE}/sources`);
+    expect(options.method).toBe('GET');
+    expect(options.headers['X-Goog-Api-Key']).toBe('abc');
+    expect(options.headers['Content-Type']).toBe('application/json');
   });
 
-  it('should list sessions (tasks) successfully', async () => {
-    const response = await client.listTasks();
-    expect(response).toBeDefined();
-    expect(Array.isArray(response.sessions)).toBe(true);
-    console.log(`Vitest: Found ${response.sessions.length} sessions.`);
+  it('encodes pagination tokens', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { sources: [], nextPageToken: 'n' }));
+    const client = makeClient();
+
+    await client.listSources('a/b c');
+    await client.listTasks('tok', 25);
+    await client.listActivities('sessions/1', 'next');
+
+    const urls = fetchMock.mock.calls.map((call) => call[0]);
+    expect(urls[0]).toBe(`${BASE}/sources?pageToken=a%2Fb%20c`);
+    expect(urls[1]).toBe(`${BASE}/sessions?pageToken=tok&pageSize=25`);
+    expect(urls[2]).toBe(`${BASE}/sessions/1/activities?pageToken=next`);
   });
 
-  it('should list activities for a task successfully', async () => {
-    const tasksResponse = await client.listTasks();
-    if (tasksResponse.sessions && tasksResponse.sessions.length > 0) {
-      const firstTask = tasksResponse.sessions[0];
-      const response = await client.listActivities(firstTask.name);
-      expect(response).toBeDefined();
-      expect(Array.isArray(response.activities)).toBe(true);
-      console.log(`Vitest: Found ${response.activities?.length || 0} activities for task ${firstTask.name}`);
-    }
+  it('creates a task posting the request body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { name: 'sessions/9' }));
+    const client = makeClient();
+    const request = { prompt: 'hi', title: 'T' } as any;
+
+    const task = await client.createTask(request);
+
+    expect(task.name).toBe('sessions/9');
+    const [url, options] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(`${BASE}/sessions`);
+    expect(options.method).toBe('POST');
+    expect(JSON.parse(options.body)).toEqual(request);
   });
 
-  it('should perform a full task lifecycle (create, delete)', async () => {
-    // 0. Get a valid source and branch dynamically
-    const sourcesResponse = await client.listSources();
-    const source = sourcesResponse.sources[0];
-    const sourceName = source.name;
-    const defaultBranch = (source as any).githubRepo?.defaultBranch?.displayName || 'main';
-    
-    // 1. Create Task
-    console.log('Vitest: Creating a test task...');
-    const createTaskRequest: any = {
-      prompt: 'Hello Jules, this is a connection test.',
-      sourceContext: { source: sourceName, githubRepoContext: { startingBranch: defaultBranch } },
-      title: 'AQ Connection Test'
-    };
+  it('normalizes session ids without the sessions/ prefix', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, {}));
+    const client = makeClient();
 
-    const task = await client.createTask(createTaskRequest);
-    expect(task).toBeDefined();
-    const sessionId = task.name!;
-    console.log(`Vitest: Created task ${sessionId}`);
+    await client.getTask('abc');
+    await client.approvePlan('abc');
+    await client.sendMessageToSession('abc', 'oi');
+    await client.cancelTask('abc');
+    await client.deleteTask('abc');
 
-    // 2. Delete Task (Cleanup)
-    console.log(`Vitest: Deleting test task ${sessionId}...`);
-    await client.deleteTask(sessionId);
-    console.log('Vitest: Task deleted successfully.');
+    const calls = fetchMock.mock.calls.map((call) => [call[0], call[1].method]);
+    expect(calls).toEqual([
+      [`${BASE}/sessions/abc`, 'GET'],
+      [`${BASE}/sessions/abc:approvePlan`, 'POST'],
+      [`${BASE}/sessions/abc:sendMessage`, 'POST'],
+      [`${BASE}/sessions/abc:cancel`, 'POST'],
+      [`${BASE}/sessions/abc`, 'DELETE'],
+    ]);
+    const sendBody = JSON.parse(fetchMock.mock.calls[2]![1].body);
+    expect(sendBody).toEqual({ prompt: 'oi' });
   });
 
-  it('should test message and cancel on an existing task if available', async () => {
-    const tasksResponse = await client.listTasks();
-    if (tasksResponse.sessions && tasksResponse.sessions.length > 0) {
-      const existingTask = tasksResponse.sessions[0];
-      const sessionId = existingTask.name;
+  it('keeps the already-qualified session path untouched', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { name: 'sessions/7' }));
+    const client = makeClient();
 
-      console.log(`Vitest: Testing sendMessageToSession for ${sessionId}...`);
-      try {
-        const updatedTask = await client.sendMessageToSession(sessionId, 'AQ verification message.');
-        expect(updatedTask).toBeDefined();
-        console.log('Vitest: Message sent successfully.');
-      } catch (e: any) {
-        console.log(`Vitest: Message sending failed (might be expected for COMPLETED tasks): ${e.message}`);
-      }
+    await client.getTask('sessions/7');
+    await client.listActivities('sessions/7');
 
-      console.log(`Vitest: Testing cancelTask for ${sessionId}...`);
-      try {
-        await client.cancelTask(sessionId);
-        console.log('Vitest: Task cancel requested successfully.');
-      } catch (e: any) {
-        console.log(`Vitest: Cancel failed (might be expected for COMPLETED tasks): ${e.message}`);
-      }
-    }
+    const urls = fetchMock.mock.calls.map((call) => call[0]);
+    expect(urls[0]).toBe(`${BASE}/sessions/7`);
+    expect(urls[1]).toBe(`${BASE}/sessions/7/activities`);
+  });
+
+  it('returns undefined for 204 responses', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(204, null));
+    const client = makeClient();
+
+    await expect(client.deleteTask('abc')).resolves.toBeUndefined();
+  });
+
+  it.each([
+    [401, 'Invalid API key. Please configure a valid Jules API key.'],
+    [403, 'Access denied. Check your Jules API key permissions.'],
+    [429, 'Rate limit exceeded. Please wait before making more requests.'],
+  ])('maps HTTP %i to a helpful error', async (status, message) => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(status, { error: { message: 'upstream detail' } }),
+    );
+    const client = makeClient();
+
+    await expect(client.listTasks()).rejects.toThrow(message);
+  });
+
+  it('uses the server message for other failures', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(500, { error: { message: 'boom' } }));
+    const client = makeClient();
+
+    await expect(client.listTasks()).rejects.toThrow('boom');
+  });
+
+  it('falls back to the HTTP status when the error body is not JSON', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 502,
+      statusText: 'Bad Gateway',
+      json: async () => {
+        throw new Error('not json');
+      },
+    } as unknown as Response);
+    const client = makeClient();
+
+    await expect(client.listTasks()).rejects.toThrow('HTTP 502: Bad Gateway');
+  });
+
+  it('reports whether an api key is configured', async () => {
+    const client = makeClient('');
+    await client.waitForInit();
+    expect(client.hasApiKey()).toBe(false);
+    client.setApiKey('later');
+    expect(client.hasApiKey()).toBe(true);
   });
 });
