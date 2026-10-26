@@ -5,6 +5,7 @@ import { JulesChatViewProvider } from './julesProvider.js';
 
 export class JulesTaskManager {
   private pollingTimers: Map<string, NodeJS.Timeout> = new Map();
+  private approvalNotified: Set<string> = new Set();
 
   constructor(
     private readonly apiClient: JulesApiClient,
@@ -64,16 +65,12 @@ export class JulesTaskManager {
             }
           }
         } else if (normalized.status === 'pendingApproval') {
-          vscode.window.showInformationMessage(
-            `Jules is waiting for plan approval: "${normalized.prompt.substring(0, 40)}…"`,
-            'Approve'
-          ).then(action => {
-            if (action === 'Approve') {
-              void this.apiClient.approvePlan(task.name).then(approvedTask => {
-                  this.provider.postMessage({ type: 'taskUpdated', task: this.normalizeTask(approvedTask) });
-              });
-            }
-          });
+          if (!this.approvalNotified.has(task.name)) {
+            this.approvalNotified.add(task.name);
+            this.promptPlanApproval(task.name, normalized.prompt);
+          }
+        } else {
+          this.approvalNotified.delete(task.name);
         }
       } catch {
         // Silently ignore polling errors
@@ -84,11 +81,27 @@ export class JulesTaskManager {
     this.updateStatusBar();
   }
 
+  private promptPlanApproval(taskName: string, prompt: string): void {
+    void vscode.window.showInformationMessage(
+      `Jules is waiting for plan approval: "${prompt.substring(0, 40)}…"`,
+      'Approve'
+    ).then(async action => {
+      if (action !== 'Approve') return;
+      try {
+        const approvedTask = await this.apiClient.approvePlan(taskName);
+        this.provider.postMessage({ type: 'taskUpdated', task: this.normalizeTask(approvedTask) });
+      } catch (error) {
+        void vscode.window.showErrorMessage(`Jules: failed to approve plan (${String(error)})`);
+      }
+    });
+  }
+
   public stopPolling(taskId: string): void {
     const timer = this.pollingTimers.get(taskId);
     if (timer) {
       clearInterval(timer);
       this.pollingTimers.delete(taskId);
     }
+    this.approvalNotified.delete(taskId);
   }
 }

@@ -160,7 +160,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:vscode": "node ./out/test/runTests.js",
-    "lint": "eslint src --ext ts",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "package": "vsce package"
   },
