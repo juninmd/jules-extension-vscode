@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { randomBytes } from 'crypto';
 
 export function getHtmlContent(webview: vscode.Webview, extensionPath: string): string {
   const nonce = getNonce();
@@ -115,8 +116,7 @@ function getNonce(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   // Use crypto to avoid SonarCloud rule S2245 (Math.random) if applicable,
   // but memory says to use crypto.randomBytes instead of Math.random().
-  const crypto = require('crypto');
-  const bytes = crypto.randomBytes(32);
+  const bytes = randomBytes(32);
   for (let i = 0; i < 32; i++) {
     text += chars.charAt(bytes[i] % chars.length);
   }
